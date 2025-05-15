@@ -102,6 +102,12 @@ while (i <= length(args)){
         negbinom.n=as.numeric(args[i+1]);i = i+2
     }else if(args[i]=="-h"|args[i]=="--help"){
         message(helpMessage);q(save="no")
+    #Ajout CM
+    } else if (args[i] == "--minUniqueReads") {
+        minUniqueReads <- args[i + 1]; i = i+2
+        minUniqueReads <- as.integer(minUniqueReads)
+    #fin ajout CM
+
     }else{
         message(helpMessage);stop(paste("********Unknown option:",args[i],"\n"))
     }
@@ -148,6 +154,18 @@ message("######################")
 message("#Data formating...")
 message("######################")
 
+#Ajout CM
+# Fonction pour trouver l'index d'un élément dans un vecteur
+find_index <- function(element, vector) {
+  index <- grep(element, vector)
+  if (length(index) == 0) {
+    return(NULL)
+  } else {
+    return(index)
+  }
+}
+#Fin ajout CM
+
 #import of data
 
 T1<-Sys.time()
@@ -158,14 +176,20 @@ SampleInput=names(tmp)[c(6:ncol(tmp))]
 
 if(!is.null(EchName)){
     EchName = unlist(strsplit(EchName,"|",fixed=TRUE))
-	if(length(SampleInput)!=length(EchName)){
-		stop("***** All sample were not named")
-	}else{
+    if(length(SampleInput)!=length(EchName)){
+        stop("***** All sample were not named")
+    }else{
+        #Ajout CM
+        # Trouver les index des éléments de EchName dans SampleInput
+        EchName_index <- sapply(EchName, function(ech) find_index(ech, SampleInput))
+        EchName <- EchName[order(unlist(EchName_index))]
+        ##Fin ajout CM
+
         SampleInput = EchName
         names(tmp)[c(6:ncol(tmp))] = SampleInput
     }
 }else{
-	EchName = SampleInput
+    EchName = SampleInput
 }
 message("   Remove junction with low coverage...")
 max_cov = apply(tmp[,c(6:ncol(tmp))],1,max)
@@ -191,8 +215,8 @@ sampleUniqueGene = unique(tmp$gene)
 
 missingGene = sampleUniqueGene[-which(sampleUniqueGene%in%tableUniqueGene$Gene)]
 if(length(missingGene)>0){
-	message(paste("   I don't find",length(missingGene),"gene(s) (",paste(missingGene,collapse = ", "),")"))
-	tmp = tmp[-which(tmp$gene%in%missingGene),]
+    message(paste("   I don't find",length(missingGene),"gene(s) (",paste(missingGene,collapse = ", "),")"))
+    tmp = tmp[-which(tmp$gene%in%missingGene),]
 }
 
 tmp$Strand_transcript[tmp$strand=="+"] = "forward"
@@ -213,41 +237,41 @@ if(!is.null(pathTranscript)){
     if(removeOther=="YES"){
         tmp = tmp[which(tmp$gene%in%tableSelect[,"Gene"]),]
     }else{
-		message("   Add MANE transcripts...")
-		GeneWoTrans = unique(tmp$gene[is.na(tmp$transcrit)])
-		tableSelect = tableUniqueTranscript[which(tableUniqueTranscript$Gene%in%GeneWoTrans),c("Gene","transcrit","MANE_status")]
-		tableSelect = tableSelect[tableSelect$MANE_status=="mane",]
-		tmp = merge(tmp,tableSelect[,c("Gene","transcrit")],by.x="gene",by.y="Gene",all.x=TRUE)
-		tmp$transcrit = tmp$transcrit.y
-		tmp = tmp[,-which(colnames(tmp)%in%c("transcrit.x","transcrit.y"))]
-		if(anyNA(tmp$transcrit)){
-			message("   Add missing transcripts...")
-			GeneWoTrans = unique(tmp$gene[is.na(tmp$transcrit)])
-			for(gene in GeneWoTrans){
-				dataToAnalyze = tableConvert[tableConvert$Gene==gene,]
-				t = aggregate(x=dataToAnalyze$lenEx, by = list(transcript=dataToAnalyze$transcrit),FUN= sum)
-				longuestTrans = t$transcript[t$x==max(t$x)]
-				tmp$transcrit[tmp$gene==gene] = longuestTrans[1]
-			}
-		}
-	}
+        message("   Add MANE transcripts...")
+        GeneWoTrans = unique(tmp$gene[is.na(tmp$transcrit)])
+        tableSelect = tableUniqueTranscript[which(tableUniqueTranscript$Gene%in%GeneWoTrans),c("Gene","transcrit","MANE_status")]
+        tableSelect = tableSelect[tableSelect$MANE_status=="mane",]
+        tmp = merge(tmp,tableSelect[,c("Gene","transcrit")],by.x="gene",by.y="Gene",all.x=TRUE)
+        tmp$transcrit = tmp$transcrit.y
+        tmp = tmp[,-which(colnames(tmp)%in%c("transcrit.x","transcrit.y"))]
+        if(anyNA(tmp$transcrit)){
+            message("   Add missing transcripts...")
+            GeneWoTrans = unique(tmp$gene[is.na(tmp$transcrit)])
+            for(gene in GeneWoTrans){
+                dataToAnalyze = tableConvert[tableConvert$Gene==gene,]
+                t = aggregate(x=dataToAnalyze$lenEx, by = list(transcript=dataToAnalyze$transcrit),FUN= sum)
+                longuestTrans = t$transcript[t$x==max(t$x)]
+                tmp$transcrit[tmp$gene==gene] = longuestTrans[1]
+            }
+        }
+    }
 }else{
-	message("   Add MANE transcripts...")
+    message("   Add MANE transcripts...")
 
-	tmp = merge(tmp,tableUniqueTranscript[tableUniqueTranscript$MANE_status=="mane",c("Gene","transcrit")],by.x="gene",by.y="Gene",all.x=TRUE)
-	tmp$transcrit = tmp$transcrit.y
-	tmp = tmp[,-which(colnames(tmp)%in%c("transcrit.x","transcrit.y"))]
+    tmp = merge(tmp,tableUniqueTranscript[tableUniqueTranscript$MANE_status=="mane",c("Gene","transcrit")],by.x="gene",by.y="Gene",all.x=TRUE)
+    tmp$transcrit = tmp$transcrit.y
+    tmp = tmp[,-which(colnames(tmp)%in%c("transcrit.x","transcrit.y"))]
 
-	if(anyNA(tmp$transcrit)){
-		message("   Add missing transcripts...")
-		GeneWoTrans = unique(tmp$gene[is.na(tmp$transcrit)])
-		for(gene in GeneWoTrans){
-			dataToAnalyze = tableConvert[tableConvert$Gene==gene,]
-			t = aggregate(x=dataToAnalyze$lenEx, by = list(transcript=dataToAnalyze$transcrit),FUN= sum)
-			longuestTrans = t$transcript[t$x==max(t$x)]
-			tmp$transcrit[tmp$gene==gene] = longuestTrans[1]
-		}
-	}
+    if(anyNA(tmp$transcrit)){
+        message("   Add missing transcripts...")
+        GeneWoTrans = unique(tmp$gene[is.na(tmp$transcrit)])
+        for(gene in GeneWoTrans){
+            dataToAnalyze = tableConvert[tableConvert$Gene==gene,]
+            t = aggregate(x=dataToAnalyze$lenEx, by = list(transcript=dataToAnalyze$transcrit),FUN= sum)
+            longuestTrans = t$transcript[t$x==max(t$x)]
+            tmp$transcrit[tmp$gene==gene] = longuestTrans[1]
+        }
+    }
 
 }
 
@@ -261,10 +285,10 @@ input= 9:ncol(data_junction)
 n_ech=length(input)
 
 if(n_ech<5){
-	message('***Not enough samples to perform statistical analysis\n    Param for statistical analysis is fixed to \'NO\'')
-	StatAnalysis='NO'
+    message('***Not enough samples to perform statistical analysis\n    Param for statistical analysis is fixed to \'NO\'')
+    StatAnalysis='NO'
 }else if(n_ech>=5 & n_ech<10){
-	message('***WARNINGS: low number of samples statistical analysis may be not relevant')
+    message('***WARNINGS: low number of samples statistical analysis may be not relevant')
 }
 
 #index of column to the output
@@ -303,435 +327,427 @@ calcul = ""
 #Name Junctions
 
 getAnnotJuncs <- function(Start, End){
-	constitutive = "NoPhysio"
-	calcul = "NoData"
-	nameJunc = "no annotate"
+    constitutive = "NoPhysio"
+    calcul = "NoData"
+    nameJunc = "no annotate"
 
-	if(nrow(tableConvertAnnot)>=1){
-	strand = tableConvertAnnot$Strand[1]
-	# Nearest exon to the start position
-		NearestStart = tableConvertAnnot$gStart[which(abs(tableConvertAnnot$gStart - Start) == min(abs(tableConvertAnnot$gStart-  Start)))]
-		NearestEnd = tableConvertAnnot$gEnd[which(abs(tableConvertAnnot$gEnd - Start) == min(abs(tableConvertAnnot$gEnd - Start)))]
-		NearestStart = NearestStart[1]
-		NearestEnd = NearestEnd[1]
-		if(abs(NearestStart-Start)<abs(NearestEnd-Start)){
-			NearestEnd = tableConvertAnnot$gEnd[tableConvertAnnot$gStart==NearestStart]
-		}else if(abs(NearestStart-Start)>abs(NearestEnd-Start)){
-			NearestStart = tableConvertAnnot$gStart[tableConvertAnnot$gEnd==NearestEnd]
-		}
-		NearestExonStart = tableConvertAnnot$idEx[tableConvertAnnot$gStart==NearestStart]
+    if(nrow(tableConvertAnnot)>=1){
+    strand = tableConvertAnnot$Strand[1]
+    # Nearest exon to the start position
+        NearestStart = tableConvertAnnot$gStart[which(abs(tableConvertAnnot$gStart - Start) == min(abs(tableConvertAnnot$gStart-  Start)))]
+        NearestEnd = tableConvertAnnot$gEnd[which(abs(tableConvertAnnot$gEnd - Start) == min(abs(tableConvertAnnot$gEnd - Start)))]
+        NearestStart = NearestStart[1]
+        NearestEnd = NearestEnd[1]
+        if(abs(NearestStart-Start)<abs(NearestEnd-Start)){
+            NearestEnd = tableConvertAnnot$gEnd[tableConvertAnnot$gStart==NearestStart]
+        }else if(abs(NearestStart-Start)>abs(NearestEnd-Start)){
+            NearestStart = tableConvertAnnot$gStart[tableConvertAnnot$gEnd==NearestEnd]
+        }
+        NearestExonStart = tableConvertAnnot$idEx[tableConvertAnnot$gStart==NearestStart]
 
-	# Nearest Exon to the end position
-		NearestStart = tableConvertAnnot$gStart[which(abs(tableConvertAnnot$gStart - End) == min(abs(tableConvertAnnot$gStart-  End)))]
-		NearestEnd = tableConvertAnnot$gEnd[which(abs(tableConvertAnnot$gEnd - End) == min(abs(tableConvertAnnot$gEnd - End)))]
-		NearestStart = NearestStart[1]
-		NearestEnd = NearestEnd[1]
-		if(abs(NearestStart-End)<abs(NearestEnd-End)){
-			NearestEnd = tableConvertAnnot$gEnd[tableConvertAnnot$gStart==NearestStart]
-		}else if(abs(NearestStart-End)>abs(NearestEnd-End)){
-			NearestStart = tableConvertAnnot$gStart[tableConvertAnnot$gEnd==NearestEnd]
-		}
-		NearestExonEnd = tableConvertAnnot$idEx[tableConvertAnnot$gStart==NearestStart]
+    # Nearest Exon to the end position
+        NearestStart = tableConvertAnnot$gStart[which(abs(tableConvertAnnot$gStart - End) == min(abs(tableConvertAnnot$gStart-  End)))]
+        NearestEnd = tableConvertAnnot$gEnd[which(abs(tableConvertAnnot$gEnd - End) == min(abs(tableConvertAnnot$gEnd - End)))]
+        NearestStart = NearestStart[1]
+        NearestEnd = NearestEnd[1]
+        if(abs(NearestStart-End)<abs(NearestEnd-End)){
+            NearestEnd = tableConvertAnnot$gEnd[tableConvertAnnot$gStart==NearestStart]
+        }else if(abs(NearestStart-End)>abs(NearestEnd-End)){
+            NearestStart = tableConvertAnnot$gStart[tableConvertAnnot$gEnd==NearestEnd]
+        }
+        NearestExonEnd = tableConvertAnnot$idEx[tableConvertAnnot$gStart==NearestStart]
 
-		if(strand=="+"){
-			transcritStart = min(tableConvertAnnot$gStart)
-			transcritEnd = max(tableConvertAnnot$gEnd)
-			if(Start < transcritStart | transcritEnd < End){
-				nameJunc = "Outside Transcript"
-			}else{
+        if(strand=="+"){
+            transcritStart = min(tableConvertAnnot$gStart)
+            transcritEnd = max(tableConvertAnnot$gEnd)
+            if(Start < transcritStart | transcritEnd < End){
+                nameJunc = "Outside Transcript"
+            }else{
 
-				if(tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]==Start){
-					if(tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]==End){
-						if((NearestExonEnd-NearestExonStart)==1){
-							nameJunc = paste(NearestExonStart,NearestExonEnd,sep="_")
-							constitutive="Physio"
-							calcul="Physio"
-						}else if((NearestExonEnd-NearestExonStart)==2){
-							nameJunc = paste(DeltaSymb, (NearestExonStart + 1), sep="")
-							calcul="SkipEx"
-						}else if((NearestExonEnd-NearestExonStart)>2){
-							nameJunc = paste(DeltaSymb, (NearestExonStart + 1),"_", (NearestExonEnd - 1), sep="")
-							calcul="SkipEx"
-						}else{
-							nameJunc = "exon excision"
-						}
-					}else{
-						if((NearestExonEnd-NearestExonStart)==1){
-							if(End < tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]){
-								nameJunc = paste(BlackInvTriangle,NearestExonStart,"p","(",
-												abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
-							}else if(End < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]){
-								nameJunc = paste(DeltaSymb,NearestExonEnd,"p","(",
-												abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
-							}else{
-								nameJunc = paste(BlackInvTriangle,NearestExonEnd,"p","(",abs(End - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]),
-												"),",DeltaSymb,NearestExonEnd,abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),sep="")
-							}
-						}else if((NearestExonEnd-NearestExonStart)==2){
-							if(End < tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]){
-								nameJunc = paste(BlackInvTriangle,NearestExonStart,"p","(",
-												abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",",",
-												DeltaSymb ,NearestExonStart+1,sep="")
-							}else if(End < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]){
-								nameJunc = paste(DeltaSymb,NearestExonStart+1,",",NearestExonEnd,"p","(",
-												abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
-							}else{
-								nameJunc = paste(BlackInvTriangle,NearestExonEnd,"p","(",abs(End - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]),
-												"),",DeltaSymb,NearestExonStart+1, "_",NearestExonEnd-1,sep="")
-							}
-						}else if((NearestExonEnd-NearestExonStart) > 2){
-							if(End < tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]){
-								nameJunc = paste(BlackInvTriangle,NearestExonEnd-1,"p","(",
-												abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",",",
-												DeltaSymb ,NearestExonStart+1,"_",NearestExonEnd-1,sep="")
-							}else if(End < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]){
-								nameJunc = paste(DeltaSymb,NearestExonStart+1,"_",NearestExonEnd-1,",",NearestExonEnd,"p","(",
-												abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
-							}else{
-								nameJunc = paste(BlackInvTriangle,NearestExonEnd,"p","(",abs(End - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]),
-												"),",DeltaSymb,NearestExonStart+1, "_",NearestExonEnd-1,sep="")
-							}
-						}else if((NearestExonEnd-NearestExonStart) == 0){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart,"p","(",
-											abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart+1]),")",sep="")
-						}
-						calcul="3AS"
-					}
-				}else if(tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]==End){
-					if((NearestExonEnd-NearestExonStart)==1){
-						if(Start < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(DeltaSymb,NearestExonStart,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),")",sep="")
-						}else if(Start < tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),
-											")",DeltaSymb,NearestExonStart,sep="")
-						}else if(Start > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),")",sep="")
-						}
-					}else if((NearestExonEnd-NearestExonStart)==2){
-						if(Start < tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),
-											")",DeltaSymb,NearestExonStart,"_",NearestExonEnd-1,sep="")
-						}else if(Start < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(DeltaSymb,NearestExonStart,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart])
-											,"),",DeltaSymb,NearestExonStart+1,sep="")
-						}else if(Start > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),
-											"),",DeltaSymb,NearestExonStart+1,sep="")
-						}
-					}else if ((NearestExonEnd-NearestExonStart)>2){
-						if(Start < tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),
-											")",DeltaSymb,NearestExonStart,"_",NearestExonEnd-1,sep="")
-						}else if(Start < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(DeltaSymb,NearestExonStart,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart])
-											,"),",DeltaSymb,NearestExonStart+1,"_",NearestExonEnd-1,sep="")
-						}else if(Start > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),
-											"),",DeltaSymb,NearestExonStart+1,"_",NearestExonEnd-1,sep="")
-						}
-					}else if((NearestExonEnd-NearestExonStart) == 0){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),")",sep="")
-					}
-					calcul="5AS"
-				}else{
-					nameJunc = "Event too complex"
-				}
-			}
-		}else if (strand == "-"){
-			transcritStart = max(tableConvertAnnot$gStart)
-			transcritEnd = min(tableConvertAnnot$gEnd)
+                if(tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]==Start){
+                    if(tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]==End){
+                        if((NearestExonEnd-NearestExonStart)==1){
+                            nameJunc = paste(NearestExonStart,NearestExonEnd,sep="_")
+                            constitutive="Physio"
+                            calcul="Physio"
+                        }else if((NearestExonEnd-NearestExonStart)==2){
+                            nameJunc = paste(DeltaSymb, (NearestExonStart + 1), sep="")
+                            calcul="SkipEx"
+                        }else if((NearestExonEnd-NearestExonStart)>2){
+                            nameJunc = paste(DeltaSymb, (NearestExonStart + 1),"_", (NearestExonEnd - 1), sep="")
+                            calcul="SkipEx"
+                        }else{
+                            nameJunc = "exon excision"
+                        }
+                    }else{
+                        if((NearestExonEnd-NearestExonStart)==1){
+                            if(End < tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]){
+                                nameJunc = paste(BlackInvTriangle,NearestExonStart,"p","(",
+                                                abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
+                            }else if(End < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]){
+                                nameJunc = paste(DeltaSymb,NearestExonEnd,"p","(",
+                                                abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
+                            }else{
+                                nameJunc = paste(BlackInvTriangle,NearestExonEnd,"p","(",abs(End - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]),
+                                                "),",DeltaSymb,NearestExonEnd,abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),sep="")
+                            }
+                        }else if((NearestExonEnd-NearestExonStart)==2){
+                            if(End < tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]){
+                                nameJunc = paste(BlackInvTriangle,NearestExonStart,"p","(",
+                                                abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",",",
+                                                DeltaSymb ,NearestExonStart+1,sep="")
+                            }else if(End < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]){
+                                nameJunc = paste(DeltaSymb,NearestExonStart+1,",",NearestExonEnd,"p","(",
+                                                abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
+                            }else{
+                                nameJunc = paste(BlackInvTriangle,NearestExonEnd,"p","(",abs(End - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]),
+                                                "),",DeltaSymb,NearestExonStart+1, "_",NearestExonEnd-1,sep="")
+                            }
+                        }else if((NearestExonEnd-NearestExonStart) > 2){
+                            if(End < tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]){
+                                nameJunc = paste(BlackInvTriangle,NearestExonEnd-1,"p","(",
+                                                abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",",",
+                                                DeltaSymb ,NearestExonStart+1,"_",NearestExonEnd-1,sep="")
+                            }else if(End < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]){
+                                nameJunc = paste(DeltaSymb,NearestExonStart+1,"_",NearestExonEnd-1,",",NearestExonEnd,"p","(",
+                                                abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
+                            }else{
+                                nameJunc = paste(BlackInvTriangle,NearestExonEnd,"p","(",abs(End - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]),
+                                                "),",DeltaSymb,NearestExonStart+1, "_",NearestExonEnd-1,sep="")
+                            }
+                        }else if((NearestExonEnd-NearestExonStart) == 0){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart,"p","(",
+                                            abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart+1]),")",sep="")
+                        }
+                        calcul="3AS"
+                    }
+                }else if(tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]==End){
+                    if((NearestExonEnd-NearestExonStart)==1){
+                        if(Start < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(DeltaSymb,NearestExonStart,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),")",sep="")
+                        }else if(Start < tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),
+                                            ")",DeltaSymb,NearestExonStart,sep="")
+                        }else if(Start > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),")",sep="")
+                        }
+                    }else if((NearestExonEnd-NearestExonStart)==2){
+                        if(Start < tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),
+                                            ")",DeltaSymb,NearestExonStart,"_",NearestExonEnd-1,sep="")
+                        }else if(Start < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(DeltaSymb,NearestExonStart,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart])
+                                            ,"),",DeltaSymb,NearestExonStart+1,sep="")
+                        }else if(Start > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),
+                                            "),",DeltaSymb,NearestExonStart+1,sep="")
+                        }
+                    }else if ((NearestExonEnd-NearestExonStart)>2){
+                        if(Start < tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),
+                                            ")",DeltaSymb,NearestExonStart,"_",NearestExonEnd-1,sep="")
+                        }else if(Start < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(DeltaSymb,NearestExonStart,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart])
+                                            ,"),",DeltaSymb,NearestExonStart+1,"_",NearestExonEnd-1,sep="")
+                        }else if(Start > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),
+                                            "),",DeltaSymb,NearestExonStart+1,"_",NearestExonEnd-1,sep="")
+                        }
+                    }else if((NearestExonEnd-NearestExonStart) == 0){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),")",sep="")
+                    }
+                    calcul="5AS"
+                }else{
+                    nameJunc = "Event too complex"
+                }
+            }
+        }else if (strand == "-"){
+            transcritStart = max(tableConvertAnnot$gStart)
+            transcritEnd = min(tableConvertAnnot$gEnd)
 
-			if(Start > transcritStart | transcritEnd > End){
-				nameJunc = "Outside Transcript"
-			}else{
-				if(tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]==Start){
-					if(tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]==End){
-						if((NearestExonEnd-NearestExonStart)==1){
-							nameJunc = paste(NearestExonStart,NearestExonEnd,sep="_")
-							constitutive="Physio"
-							calcul="Physio"
-						}else if((NearestExonEnd-NearestExonStart)==2){
-							nameJunc = paste(DeltaSymb, (NearestExonStart + 1), sep="")
-							calcul="SkipEx"
-						}else if((NearestExonEnd-NearestExonStart)>2){
-							nameJunc = paste(DeltaSymb, (NearestExonStart + 1),"_", (NearestExonEnd - 1), sep="")
-							calcul="SkipEx"
-						}else{
-							nameJunc = "exon excision"
-						}
-					}else{
-						if((NearestExonEnd-NearestExonStart)==1){
-							if(End > tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]){
-								nameJunc = paste(BlackInvTriangle,NearestExonStart,"p","(",
-												abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
-							}else if(End > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]){
-								nameJunc = paste(DeltaSymb,NearestExonEnd,"p","(",
-												abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
-							}else{
-								nameJunc = paste(BlackInvTriangle,NearestExonEnd,"p","(",abs(End - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]),
-												"),",DeltaSymb,NearestExonEnd,abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),sep="")
-							}
-						}else if((NearestExonEnd-NearestExonStart)==2){
-							if(End > tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]){
-								nameJunc = paste(BlackInvTriangle,NearestExonStart,"p","(",
-												abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),"),",
-												DeltaSymb ,NearestExonStart+1,sep="")
-							}else if(End > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]){
-								nameJunc = paste(DeltaSymb,NearestExonStart+1,",",NearestExonEnd,"p","(",
-												abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
-							}else{
-								nameJunc = paste(BlackInvTriangle,NearestExonEnd,"p","(",abs(End - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]),
-												"),",DeltaSymb,NearestExonStart+1, "_",NearestExonEnd-1,sep="")
-							}
-						}else if((NearestExonEnd-NearestExonStart) > 2){
-							if(End > tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]){
-								nameJunc = paste(BlackInvTriangle,NearestExonEnd-1,"p","(",
-												abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",",",
-												DeltaSymb ,NearestExonStart+1,"_",NearestExonEnd-1,sep="")
-							}else if(End > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]){
-								nameJunc = paste(DeltaSymb,NearestExonStart+1,"_",NearestExonEnd-1,",",NearestExonEnd,"p","(",
-												abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
-							}else{
-								nameJunc = paste(BlackInvTriangle,NearestExonEnd,"p","(",abs(End - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]),
-												"),",DeltaSymb,NearestExonStart+1, "_",NearestExonEnd-1,sep="")
-							}
-						}else if((NearestExonEnd-NearestExonStart) == 0){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart,"p","(",
-											abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart+1]),")",sep="")
-						}
-						calcul="3AS"
-					}
-				}else if(tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]==End){
-					if((NearestExonEnd-NearestExonStart)==1){
-						if(Start > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(DeltaSymb,NearestExonStart,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),")",sep="")
-						}else if(Start > tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),
-											")",DeltaSymb,NearestExonStart,sep="")
-						}else if(Start < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),")",sep="")
-						}
-					}else if((NearestExonEnd-NearestExonStart)==2){
-						if(Start > tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),
-											")",DeltaSymb,NearestExonStart,"_",NearestExonEnd-1,sep="")
-						}else if(Start > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(DeltaSymb,NearestExonStart,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart])
-											,"),",DeltaSymb,NearestExonStart+1,sep="")
-						}else if(Start < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),
-											"),",DeltaSymb,NearestExonStart+1,sep="")
-						}
-					}else if ((NearestExonEnd-NearestExonStart)>2){
-						if(Start > tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),
-											")",DeltaSymb,NearestExonStart,"_",NearestExonEnd-1,sep="")
-						}else if(Start > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(DeltaSymb,NearestExonStart,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart])
-											,"),",DeltaSymb,NearestExonStart+1,"_",NearestExonEnd-1,sep="")
-						}else if(Start < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),
-											"),",DeltaSymb,NearestExonStart+1,"_",NearestExonEnd-1,sep="")
-						}
-					}else if((NearestExonEnd-NearestExonStart) == 0){
-							nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
-											abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),")",sep="")
-					}
-					calcul="5AS"
-				}else{
-					nameJunc = "Event too complex"
-				}
-			}
-		}
-	}else{
-		nameJunc = "Transcript Not found"
-	}
-	annot <<-c(constitutive,calcul,nameJunc)
+            if(Start > transcritStart | transcritEnd > End){
+                nameJunc = "Outside Transcript"
+            }else{
+                if(tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]==Start){
+                    if(tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]==End){
+                        if((NearestExonEnd-NearestExonStart)==1){
+                            nameJunc = paste(NearestExonStart,NearestExonEnd,sep="_")
+                            constitutive="Physio"
+                            calcul="Physio"
+                        }else if((NearestExonEnd-NearestExonStart)==2){
+                            nameJunc = paste(DeltaSymb, (NearestExonStart + 1), sep="")
+                            calcul="SkipEx"
+                        }else if((NearestExonEnd-NearestExonStart)>2){
+                            nameJunc = paste(DeltaSymb, (NearestExonStart + 1),"_", (NearestExonEnd - 1), sep="")
+                            calcul="SkipEx"
+                        }else{
+                            nameJunc = "exon excision"
+                        }
+                    }else{
+                        if((NearestExonEnd-NearestExonStart)==1){
+                            if(End > tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]){
+                                nameJunc = paste(BlackInvTriangle,NearestExonStart,"p","(",
+                                                abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
+                            }else if(End > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]){
+                                nameJunc = paste(DeltaSymb,NearestExonEnd,"p","(",
+                                                abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
+                            }else{
+                                nameJunc = paste(BlackInvTriangle,NearestExonEnd,"p","(",abs(End - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]),
+                                                "),",DeltaSymb,NearestExonEnd,abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),sep="")
+                            }
+                        }else if((NearestExonEnd-NearestExonStart)==2){
+                            if(End > tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]){
+                                nameJunc = paste(BlackInvTriangle,NearestExonStart,"p","(",
+                                                abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),"),",
+                                                DeltaSymb ,NearestExonStart+1,sep="")
+                            }else if(End > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]){
+                                nameJunc = paste(DeltaSymb,NearestExonStart+1,",",NearestExonEnd,"p","(",
+                                                abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
+                            }else{
+                                nameJunc = paste(BlackInvTriangle,NearestExonEnd,"p","(",abs(End - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]),
+                                                "),",DeltaSymb,NearestExonStart+1, "_",NearestExonEnd-1,sep="")
+                            }
+                        }else if((NearestExonEnd-NearestExonStart) > 2){
+                            if(End > tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]){
+                                nameJunc = paste(BlackInvTriangle,NearestExonEnd-1,"p","(",
+                                                abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",",",
+                                                DeltaSymb ,NearestExonStart+1,"_",NearestExonEnd-1,sep="")
+                            }else if(End > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]){
+                                nameJunc = paste(DeltaSymb,NearestExonStart+1,"_",NearestExonEnd-1,",",NearestExonEnd,"p","(",
+                                                abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]),")",sep="")
+                            }else{
+                                nameJunc = paste(BlackInvTriangle,NearestExonEnd,"p","(",abs(End - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonEnd]),
+                                                "),",DeltaSymb,NearestExonStart+1, "_",NearestExonEnd-1,sep="")
+                            }
+                        }else if((NearestExonEnd-NearestExonStart) == 0){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart,"p","(",
+                                            abs(End - tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart+1]),")",sep="")
+                        }
+                        calcul="3AS"
+                    }
+                }else if(tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonEnd]==End){
+                    if((NearestExonEnd-NearestExonStart)==1){
+                        if(Start > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(DeltaSymb,NearestExonStart,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),")",sep="")
+                        }else if(Start > tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),
+                                            ")",DeltaSymb,NearestExonStart,sep="")
+                        }else if(Start < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),")",sep="")
+                        }
+                    }else if((NearestExonEnd-NearestExonStart)==2){
+                        if(Start > tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),
+                                            ")",DeltaSymb,NearestExonStart,"_",NearestExonEnd-1,sep="")
+                        }else if(Start > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(DeltaSymb,NearestExonStart,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart])
+                                            ,"),",DeltaSymb,NearestExonStart+1,sep="")
+                        }else if(Start < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),
+                                            "),",DeltaSymb,NearestExonStart+1,sep="")
+                        }
+                    }else if ((NearestExonEnd-NearestExonStart)>2){
+                        if(Start > tableConvertAnnot$gStart[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),
+                                            ")",DeltaSymb,NearestExonStart,"_",NearestExonEnd-1,sep="")
+                        }else if(Start > tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(DeltaSymb,NearestExonStart,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart])
+                                            ,"),",DeltaSymb,NearestExonStart+1,"_",NearestExonEnd-1,sep="")
+                        }else if(Start < tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart]),
+                                            "),",DeltaSymb,NearestExonStart+1,"_",NearestExonEnd-1,sep="")
+                        }
+                    }else if((NearestExonEnd-NearestExonStart) == 0){
+                            nameJunc = paste(BlackInvTriangle,NearestExonStart-1,"q","(",
+                                            abs(Start - tableConvertAnnot$gEnd[tableConvertAnnot$idEx==NearestExonStart-1]),")",sep="")
+                    }
+                    calcul="5AS"
+                }else{
+                    nameJunc = "Event too complex"
+                }
+            }
+        }
+    }else{
+        nameJunc = "Transcript Not found"
+    }
+    annot <<-c(constitutive,calcul,nameJunc)
 }
 
 #Conversion gNomen in cNomen
 
 convertTocNomenFor <- function(gPos){
 
-	if(nrow(tableConvertcNomen)>=1){
-		NearestStart = tableConvertcNomen$gStart[which(abs(tableConvertcNomen$gStart - gPos) == min(abs(tableConvertcNomen$gStart-  gPos)))]
-		NearestEnd = tableConvertcNomen$gEnd[which(abs(tableConvertcNomen$gEnd - gPos) == min(abs(tableConvertcNomen$gEnd - gPos)))]
-		NearestStart = NearestStart[1]
-		NearestEnd = NearestEnd[1]
+    if(nrow(tableConvertcNomen)>=1){
+        NearestStart = tableConvertcNomen$gStart[which(abs(tableConvertcNomen$gStart - gPos) == min(abs(tableConvertcNomen$gStart-  gPos)))]
+        NearestEnd = tableConvertcNomen$gEnd[which(abs(tableConvertcNomen$gEnd - gPos) == min(abs(tableConvertcNomen$gEnd - gPos)))]
+        NearestStart = NearestStart[1]
+        NearestEnd = NearestEnd[1]
 
-		if(abs(NearestStart-gPos)<abs(NearestEnd-gPos)){
-			NearestEnd = tableConvertcNomen$gEnd[tableConvertcNomen$gStart==NearestStart]
-		}else if(abs(NearestStart-gPos)>abs(NearestEnd-gPos)){
-			NearestStart = tableConvertcNomen$gStart[tableConvertcNomen$gEnd==NearestEnd]
-		}
+        if(abs(NearestStart-gPos)<abs(NearestEnd-gPos)){
+            NearestEnd = tableConvertcNomen$gEnd[tableConvertcNomen$gStart==NearestStart]
+        }else if(abs(NearestStart-gPos)>abs(NearestEnd-gPos)){
+            NearestStart = tableConvertcNomen$gStart[tableConvertcNomen$gEnd==NearestEnd]
+        }
 
-		startTranscrit = tableConvertcNomen$gStart[1]
-		endTranscrit = tableConvertcNomen$gEnd[nrow(tableConvertcNomen)]
-		gCDSstart = tableConvertcNomen$gCDSstart[1]
-		gCDSend = tableConvertcNomen$gCDSend[1]
+        startTranscrit = tableConvertcNomen$gStart[1]
+        endTranscrit = tableConvertcNomen$gEnd[nrow(tableConvertcNomen)]
+        gCDSstart = tableConvertcNomen$gCDSstart[1]
+        gCDSend = tableConvertcNomen$gCDSend[1]
 
-		if(gPos < startTranscrit){
-			delta = startTranscrit - gPos
-			cPos <<- paste("c.",tableConvertcNomen$cStart[1]-delta,sep="")
-		}else if(gPos > endTranscrit){
-			delta = gPos - endTranscrit
-			cPos <<- paste("c.*",tableConvertcNomen$cEnd[nrow(tableConvertcNomen)]+delta-1,sep="")
-		}else if(nrow(tableConvertcNomen[tableConvertcNomen$gStart==gPos,])==1 & gPos < gCDSend){
-			cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==gPos],sep="")
-		}else if(nrow(tableConvertcNomen[tableConvertcNomen$gEnd==gPos,])==1 & gPos < gCDSend){
-			cPos <<- paste("c.",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==gPos],sep="")
-		}else if (gPos < gCDSstart){
-			if(gPos > NearestStart & gPos < NearestEnd){
-				delta = gPos - NearestStart
-				cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart]+delta,sep="")
-			}else if(gPos < NearestStart){
-				delta = NearestStart - gPos
-				cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart],"-",delta,sep="")
-			}else if(gPos > NearestEnd){
-				delta = gPos - NearestEnd
-				cPos <<- paste("c.",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd],"+",delta,sep="")
-			}
-		}else if (gPos > gCDSend){
-			if(gPos == NearestStart){
-				cPos <<- paste("c.*",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart],sep="")
-			}else if(gPos == NearestEnd){
-				cPos <<- paste("c.*",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd],sep="")
-			}else if(gPos > NearestStart & gPos < NearestEnd){
-				delta = NearestEnd - gPos
-				cPos <<- paste("c.*",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd]-delta-1,sep="")
-			}else if(gPos < NearestStart){
-				delta = NearestStart - gPos
-				cPos <<- paste("c.*",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart]-1,"-",delta,sep="")
-			}else if(gPos > NearestEnd){
-				delta = gPos - NearestEnd
-				cPos <<- paste("c.*",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd]-1,"+",delta,sep="")
-			}
-		}else if (gPos > NearestStart & gPos < NearestEnd){
-			delta = gPos - NearestStart
-			cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart]+delta,sep="")
-		}else if (gPos < NearestStart){
-			delta = NearestStart - gPos
-			cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart],"-",delta,sep="")
-		}else if(gPos > NearestEnd){
-			delta = gPos - NearestEnd
-			cPos <<- paste("c.",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd],"+",delta,sep="")
-		}
-	}else{
-	cPos <<- 0
-	}
+        if(gPos < startTranscrit){
+            delta = startTranscrit - gPos
+            cPos <<- paste("c.",tableConvertcNomen$cStart[1]-delta,sep="")
+        }else if(gPos > endTranscrit){
+            delta = gPos - endTranscrit
+            cPos <<- paste("c.*",tableConvertcNomen$cEnd[nrow(tableConvertcNomen)]+delta-1,sep="")
+        }else if(nrow(tableConvertcNomen[tableConvertcNomen$gStart==gPos,])==1){
+            cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==gPos],sep="")
+        }else if(nrow(tableConvertcNomen[tableConvertcNomen$gEnd==gPos,])==1){
+            cPos <<- paste("c.",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==gPos],sep="")
+        }else if (gPos < gCDSstart){
+            if(gPos > NearestStart & gPos < NearestEnd){
+                delta = gPos - NearestStart
+                cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart]+delta,sep="")
+            }else if(gPos < NearestStart){
+                delta = NearestStart - gPos
+                cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart],"-",delta,sep="")
+            }else if(gPos > NearestEnd){
+                delta = gPos - NearestEnd
+                cPos <<- paste("c.",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd],"+",delta,sep="")
+            }
+        }else if (gPos > gCDSend){
+            if(gPos > NearestStart & gPos < NearestEnd){
+                delta = NearestEnd - gPos
+                cPos <<- paste("c.*",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd]-delta-1,sep="")
+            }else if(gPos < NearestStart){
+                delta = NearestStart - gPos
+                cPos <<- paste("c.*",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart]-1,"-",delta,sep="")
+            }else if(gPos > NearestEnd){
+                delta = gPos - NearestEnd
+                cPos <<- paste("c.*",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd]-1,"+",delta,sep="")
+            }
+        }else if (gPos > NearestStart & gPos < NearestEnd){
+            delta = gPos - NearestStart
+            cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart]+delta,sep="")
+        }else if (gPos < NearestStart){
+            delta = NearestStart - gPos
+            cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart],"-",delta,sep="")
+        }else if(gPos > NearestEnd){
+            delta = gPos - NearestEnd
+            cPos <<- paste("c.",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd],"+",delta,sep="")
+        }
+    }else{
+    cPos <<- 0
+    }
 }
 
 convertTocNomenRev <- function(gPos){
 
-	if(nrow(tableConvertcNomen)>=1){
-		NearestStart = tableConvertcNomen$gStart[which(abs(tableConvertcNomen$gStart - gPos) == min(abs(tableConvertcNomen$gStart-  gPos)))]
-		NearestEnd = tableConvertcNomen$gEnd[which(abs(tableConvertcNomen$gEnd - gPos) == min(abs(tableConvertcNomen$gEnd - gPos)))]
-		NearestStart = NearestStart[1]
-		NearestEnd = NearestEnd[1]
+    if(nrow(tableConvertcNomen)>=1){
+        NearestStart = tableConvertcNomen$gStart[which(abs(tableConvertcNomen$gStart - gPos) == min(abs(tableConvertcNomen$gStart-  gPos)))]
+        NearestEnd = tableConvertcNomen$gEnd[which(abs(tableConvertcNomen$gEnd - gPos) == min(abs(tableConvertcNomen$gEnd - gPos)))]
+        NearestStart = NearestStart[1]
+        NearestEnd = NearestEnd[1]
 
-		if(abs(NearestStart-gPos)<abs(NearestEnd-gPos)){
-			NearestEnd = tableConvertcNomen$gEnd[tableConvertcNomen$gStart==NearestStart]
-		}else if(abs(NearestStart-gPos)>abs(NearestEnd-gPos)){
-			NearestStart = tableConvertcNomen$gStart[tableConvertcNomen$gEnd==NearestEnd]
-		}
+        if(abs(NearestStart-gPos)<abs(NearestEnd-gPos)){
+            NearestEnd = tableConvertcNomen$gEnd[tableConvertcNomen$gStart==NearestStart]
+        }else if(abs(NearestStart-gPos)>abs(NearestEnd-gPos)){
+            NearestStart = tableConvertcNomen$gStart[tableConvertcNomen$gEnd==NearestEnd]
+        }
 
-		startTranscrit = tableConvertcNomen$gStart[nrow(tableConvertcNomen)]
-		endTranscrit = tableConvertcNomen$gEnd[1]
-		gCDSstart = tableConvertcNomen$gCDSstart[1]
-		gCDSend = tableConvertcNomen$gCDSend[1]
+        startTranscrit = tableConvertcNomen$gStart[nrow(tableConvertcNomen)]
+        endTranscrit = tableConvertcNomen$gEnd[1]
+        gCDSstart = tableConvertcNomen$gCDSstart[1]
+        gCDSend = tableConvertcNomen$gCDSend[1]
 
-		if(gPos > startTranscrit){
-			delta = gPos - startTranscrit
-			cPos <<- paste("c.",tableConvertcNomen$cStart[nrow(tableConvertcNomen)]-delta,sep="")
-		}else if(gPos < endTranscrit){
-			delta = endTranscrit - gPos
-			cPos <<- paste("c.*",tableConvertcNomen$cEnd[1]+delta-1,sep="")
-		}else if(nrow(tableConvertcNomen[tableConvertcNomen$gStart==gPos,])==1 & gPos > gCDSend){
-			cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==gPos],sep="")
-		}else if(nrow(tableConvertcNomen[tableConvertcNomen$gEnd==gPos,])==1 & gPos > gCDSend){
-			cPos <<- paste("c.",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==gPos],sep="")
-		}else if (gPos > gCDSstart){
-			if(gPos < NearestStart & gPos > NearestEnd){
-				delta = NearestStart - gPos
-				cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart]+delta,sep="")
-			}else if(gPos > NearestStart){
-				delta = gPos - NearestStart
-				cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart],"-",delta,sep="")
-			}else if(gPos < NearestEnd){
-				delta = NearestEnd - gPos
-				cPos <<- paste("c.",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd],"+",delta,sep="")
-			}
-		}else if (gPos < gCDSend){
-			if(gPos == NearestStart){
-				cPos <<- paste("c.*",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart],sep="")
-			}else if(gPos == NearestEnd){
-				cPos <<- paste("c.*",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd],sep="")
-			}else if(gPos < NearestStart & gPos > NearestEnd){
-				delta = gPos - NearestEnd
-				cPos <<- paste("c.*",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd]-delta-1,sep="")
-			}else if(gPos > NearestStart){
-				delta = gPos - NearestStart
-				cPos <<- paste("c.*",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart]-1,"-",delta,sep="")
-			}else if(gPos < NearestEnd){
-				delta = NearestEnd - gPos
-				cPos <<- paste("c.*",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd]-1,"+",delta,sep="")
-			}
-		}else if (gPos < NearestStart & gPos > NearestEnd){
-			delta = NearestStart - gPos
-			cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart]+delta,sep="")
-		}else if (gPos > NearestStart){
-			delta = gPos - NearestStart
-			cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart],"-",delta,sep="")
-		}else if(gPos < NearestEnd){
-			delta = NearestEnd - gPos
-			cPos <<- paste("c.",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd],"+",delta,sep="")
-		}
-	}else{
-	cPos <<- 0
-	}
+        if(gPos > startTranscrit){
+            delta = gPos - startTranscrit
+            cPos <<- paste("c.",tableConvertcNomen$cStart[nrow(tableConvertcNomen)]-delta,sep="")
+        }else if(gPos < endTranscrit){
+            delta = endTranscrit - gPos
+            cPos <<- paste("c.*",tableConvertcNomen$cEnd[1]+delta-1,sep="")
+        }else if(nrow(tableConvertcNomen[tableConvertcNomen$gStart==gPos,])==1){
+            cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==gPos],sep="")
+        }else if(nrow(tableConvertcNomen[tableConvertcNomen$gEnd==gPos,])==1){
+            cPos <<- paste("c.",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==gPos],sep="")
+        }else if (gPos > gCDSstart){
+            if(gPos < NearestStart & gPos > NearestEnd){
+                delta = NearestStart - gPos
+                cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart]+delta,sep="")
+            }else if(gPos > NearestStart){
+                delta = gPos - NearestStart
+                cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart],"-",delta,sep="")
+            }else if(gPos < NearestEnd){
+                delta = NearestEnd - gPos
+                cPos <<- paste("c.",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd],"+",delta,sep="")
+            }
+        }else if (gPos < gCDSend){
+            if(gPos < NearestStart & gPos > NearestEnd){
+                delta = gPos - NearestEnd
+                cPos <<- paste("c.*",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd]-delta-1,sep="")
+            }else if(gPos > NearestStart){
+                delta = gPos - NearestStart
+                cPos <<- paste("c.*",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart]-1,"-",delta,sep="")
+            }else if(gPos < NearestEnd){
+                delta = NearestEnd - gPos
+                cPos <<- paste("c.*",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd]-1,"+",delta,sep="")
+            }
+        }else if (gPos < NearestStart & gPos > NearestEnd){
+            delta = NearestStart - gPos
+            cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart]+delta,sep="")
+        }else if (gPos > NearestStart){
+            delta = gPos - NearestStart
+            cPos <<- paste("c.",tableConvertcNomen$cStart[tableConvertcNomen$gStart==NearestStart],"-",delta,sep="")
+        }else if(gPos < NearestEnd){
+            delta = NearestEnd - gPos
+            cPos <<- paste("c.",tableConvertcNomen$cEnd[tableConvertcNomen$gEnd==NearestEnd],"+",delta,sep="")
+        }
+    }else{
+    cPos <<- 0
+    }
 }
 
 #Annotation functions
 
 FuncAnnotJuncsFor <- function(Start, End){
 
-	annotjunc = getAnnotJuncs(Start, End)
-	constitutive = annotjunc[1]
-	calcul = annotjunc[2]
-	nameJunc = annotjunc[3]
-	cStart = convertTocNomenFor(Start)
-	cEnd =convertTocNomenFor(End+1)
-	result <<-list(constitutive,calcul,nameJunc,cStart,cEnd)
+    annotjunc = getAnnotJuncs(Start, End)
+    constitutive = annotjunc[1]
+    calcul = annotjunc[2]
+    nameJunc = annotjunc[3]
+    cStart = convertTocNomenFor(Start)
+    cEnd =convertTocNomenFor(End+1)
+    result <<-list(constitutive,calcul,nameJunc,cStart,cEnd)
 }
 
 FuncAnnotJuncsRev <- function(Start, End){
 
-	annotjunc = getAnnotJuncs(End, Start)
-	constitutive = annotjunc[1]
-	calcul = annotjunc[2]
-	nameJunc = annotjunc[3]
-	cEnd = convertTocNomenRev(Start)
-	cStart = convertTocNomenRev(End+1)
-	result <<-list(constitutive,calcul,nameJunc,cStart,cEnd)
+    annotjunc = getAnnotJuncs(End, Start)
+    constitutive = annotjunc[1]
+    calcul = annotjunc[2]
+    nameJunc = annotjunc[3]
+    cEnd = convertTocNomenRev(Start)
+    cStart = convertTocNomenRev(End+1)
+    result <<-list(constitutive,calcul,nameJunc,cStart,cEnd)
 }
 
 message("######################")
@@ -755,33 +771,33 @@ pb = txtProgressBar(min = 0, max = nbTrans, initial = prog, char = "=", style = 
 
 for (i in unique(data_junction$NM)){
 
-	prog = prog+1
-	setTxtProgressBar(pb,prog)
+    prog = prog+1
+    setTxtProgressBar(pb,prog)
 
-	strand = data_junction$Strand_transcript[data_junction$NM==i][1]
-	tableConvertAnnot = tableConvert[tableConvert$transcrit==i,]
-	tmpIdTrans = which(data_junction$NM==i)
-	IdTrans = c(IdTrans,tmpIdTrans)
+    strand = data_junction$Strand_transcript[data_junction$NM==i][1]
+    tableConvertAnnot = tableConvert[tableConvert$transcrit==i,]
+    tmpIdTrans = which(data_junction$NM==i)
+    IdTrans = c(IdTrans,tmpIdTrans)
 
-	if(strand=="forward"){
-		tableConvertcNomen = tableConvertAnnot
-		tableConvertcNomen$gStart = tableConvertcNomen$gStart + 1
+    if(strand=="forward"){
+        tableConvertcNomen = tableConvertAnnot
+        tableConvertcNomen$gStart = tableConvertcNomen$gStart + 1
 
-		tmpAnnot <- mapply(FuncAnnotJuncsFor,data_junction$start[tmpIdTrans],data_junction$end[tmpIdTrans])
+        tmpAnnot <- mapply(FuncAnnotJuncsFor,data_junction$start[tmpIdTrans],data_junction$end[tmpIdTrans])
 
-	}else if(strand=="reverse"){
-		tableConvertcNomen = tableConvertAnnot
-		tableConvertcNomen$gEnd= tableConvertcNomen$gEnd + 1
+    }else if(strand=="reverse"){
+        tableConvertcNomen = tableConvertAnnot
+        tableConvertcNomen$gEnd= tableConvertcNomen$gEnd + 1
 
-		tmpAnnot <- mapply(FuncAnnotJuncsRev,data_junction$start[tmpIdTrans],data_junction$end[tmpIdTrans])
+        tmpAnnot <- mapply(FuncAnnotJuncsRev,data_junction$start[tmpIdTrans],data_junction$end[tmpIdTrans])
 
-	}
+    }
 
-	constitutive = c(constitutive,unlist(tmpAnnot[1,]))
-	calcul = c(calcul,unlist(tmpAnnot[2,]))
-	AnnotJuncs = c(AnnotJuncs,unlist(tmpAnnot[3,]))
-	cStart = c(cStart,unlist(tmpAnnot[4,]))
-	cEnd = c(cEnd,unlist(tmpAnnot[5,]))
+    constitutive = c(constitutive,unlist(tmpAnnot[1,]))
+    calcul = c(calcul,unlist(tmpAnnot[2,]))
+    AnnotJuncs = c(AnnotJuncs,unlist(tmpAnnot[3,]))
+    cStart = c(cStart,unlist(tmpAnnot[4,]))
+    cEnd = c(cEnd,unlist(tmpAnnot[5,]))
 
 }
 
@@ -793,8 +809,8 @@ data_junction$cEnd[IdTrans] = cEnd
 nConstitutiveByTrans = as.data.frame(table(data_junction$NM,data_junction$constitutive))
 TransWOphysio = as.character(nConstitutiveByTrans$Var1[nConstitutiveByTrans$Var2=="Physio" & nConstitutiveByTrans$Freq<1])
 if(length(TransWOphysio)>0){
-	message(paste("\n",length(TransWOphysio),"Transcripts without physiological junctions and then removed"))
-	data_junction = data_junction[-which(data_junction$NM%in%TransWOphysio),]
+    message(paste("\n",length(TransWOphysio),"Transcripts without physiological junctions and then removed"))
+    data_junction = data_junction[-which(data_junction$NM%in%TransWOphysio),]
 }
 
 #######################################
@@ -806,253 +822,253 @@ message("######################")
 
 getJunctionPhysioDonFor <- function(PosCryptic){
 
-	tableTranscrit=tableTranscrit[order(tableTranscrit$gStart),]
+    tableTranscrit=tableTranscrit[order(tableTranscrit$gStart),]
 
-	if(PosCryptic<=tableTranscrit$gEnd[1]){
-		JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gEnd[1],tableTranscrit$gStart[2],tableTranscrit$Gene[1],sep="_")
-	}else if (PosCryptic>tableTranscrit$gEnd[(nrow(tableTranscrit)-1)]){
-		JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gEnd[(nrow(tableTranscrit)-1)],
-							tableTranscrit$gStart[nrow(tableTranscrit)],tableTranscrit$Gene[1],sep="_")
-	}else{
-		IdSupp = which(tableTranscrit$gStart>PosCryptic)[1]
-		IdInf = which(tableTranscrit$gStart<PosCryptic)[length(which(tableTranscrit$gStart<PosCryptic))]
-		JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gEnd[IdInf],tableTranscrit$gStart[IdSupp],tableTranscrit$Gene[1],sep="_")
-	}
-	return(JunctPhysio)
+    if(PosCryptic<=tableTranscrit$gEnd[1]){
+        JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gEnd[1],tableTranscrit$gStart[2],tableTranscrit$Gene[1],sep="_")
+    }else if (PosCryptic>tableTranscrit$gEnd[(nrow(tableTranscrit)-1)]){
+        JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gEnd[(nrow(tableTranscrit)-1)],
+                            tableTranscrit$gStart[nrow(tableTranscrit)],tableTranscrit$Gene[1],sep="_")
+    }else{
+        IdSupp = which(tableTranscrit$gStart>PosCryptic)[1]
+        IdInf = which(tableTranscrit$gStart<PosCryptic)[length(which(tableTranscrit$gStart<PosCryptic))]
+        JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gEnd[IdInf],tableTranscrit$gStart[IdSupp],tableTranscrit$Gene[1],sep="_")
+    }
+    return(JunctPhysio)
 }
 
 getJunctionPhysioDonRev <- function(PosCryptic){
 
-	tableTranscrit=tableTranscrit[order(tableTranscrit$gStart,decreasing=TRUE),]
+    tableTranscrit=tableTranscrit[order(tableTranscrit$gStart,decreasing=TRUE),]
 
-	if(PosCryptic>=tableTranscrit$gEnd[1]){
-		JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gStart[2],tableTranscrit$gEnd[1],tableTranscrit$Gene[1],sep="_")
-	}else if (PosCryptic<=tableTranscrit$gEnd[(nrow(tableTranscrit)-1)]){
-		JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gStart[nrow(tableTranscrit)],
-							tableTranscrit$gEnd[(nrow(tableTranscrit)-1)],tableTranscrit$Gene[1],sep="_")
-	}else{
-		IdSupp = which(tableTranscrit$gStart<PosCryptic)[1]
-		IdInf = which(tableTranscrit$gStart>PosCryptic)[length(which(tableTranscrit$gStart>PosCryptic))]
-		JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gStart[IdSupp],tableTranscrit$gEnd[IdInf],tableTranscrit$Gene[1],sep="_")
-	}
-	return(JunctPhysio)
+    if(PosCryptic>=tableTranscrit$gEnd[1]){
+        JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gStart[2],tableTranscrit$gEnd[1],tableTranscrit$Gene[1],sep="_")
+    }else if (PosCryptic<=tableTranscrit$gEnd[(nrow(tableTranscrit)-1)]){
+        JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gStart[nrow(tableTranscrit)],
+                            tableTranscrit$gEnd[(nrow(tableTranscrit)-1)],tableTranscrit$Gene[1],sep="_")
+    }else{
+        IdSupp = which(tableTranscrit$gStart<PosCryptic)[1]
+        IdInf = which(tableTranscrit$gStart>PosCryptic)[length(which(tableTranscrit$gStart>PosCryptic))]
+        JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gStart[IdSupp],tableTranscrit$gEnd[IdInf],tableTranscrit$Gene[1],sep="_")
+    }
+    return(JunctPhysio)
 }
 
 getJunctionPhysioAccFor <- function(PosCryptic){
 
-	tableTranscrit=tableTranscrit[order(tableTranscrit$gStart),]
+    tableTranscrit=tableTranscrit[order(tableTranscrit$gStart),]
 
-	if(PosCryptic<=tableTranscrit$gStart[2]){
-		JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gEnd[1],tableTranscrit$gStart[2],tableTranscrit$Gene[1],sep="_")
-	}else if (PosCryptic>=tableTranscrit$gStart[nrow(tableTranscrit)]){
-		JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gEnd[(nrow(tableTranscrit)-1)],
-							tableTranscrit$gStart[nrow(tableTranscrit)],tableTranscrit$Gene[1],sep="_")
-	}else{
-		IdSupp = which(tableTranscrit$gEnd>PosCryptic)[1]
-		IdInf = which(tableTranscrit$gEnd<PosCryptic)[length(which(tableTranscrit$gEnd<PosCryptic))]
-		JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gEnd[IdInf],tableTranscrit$gStart[IdSupp],tableTranscrit$Gene[1],sep="_")
-	}
-	return(JunctPhysio)
+    if(PosCryptic<=tableTranscrit$gStart[2]){
+        JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gEnd[1],tableTranscrit$gStart[2],tableTranscrit$Gene[1],sep="_")
+    }else if (PosCryptic>=tableTranscrit$gStart[nrow(tableTranscrit)]){
+        JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gEnd[(nrow(tableTranscrit)-1)],
+                            tableTranscrit$gStart[nrow(tableTranscrit)],tableTranscrit$Gene[1],sep="_")
+    }else{
+        IdSupp = which(tableTranscrit$gEnd>PosCryptic)[1]
+        IdInf = which(tableTranscrit$gEnd<PosCryptic)[length(which(tableTranscrit$gEnd<PosCryptic))]
+        JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gEnd[IdInf],tableTranscrit$gStart[IdSupp],tableTranscrit$Gene[1],sep="_")
+    }
+    return(JunctPhysio)
 }
 
 getJunctionPhysioAccRev <- function(PosCryptic){
 
-	tableTranscrit=tableTranscrit[order(tableTranscrit$gStart,decreasing=TRUE),]
+    tableTranscrit=tableTranscrit[order(tableTranscrit$gStart,decreasing=TRUE),]
 
-		if(PosCryptic>=tableTranscrit$gStart[2]){
-			JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gStart[2],tableTranscrit$gEnd[1],tableTranscrit$Gene[1],sep="_")
-		}else if (PosCryptic<=tableTranscrit$gStart[nrow(tableTranscrit)]){
-			JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gStart[nrow(tableTranscrit)],
-								tableTranscrit$gEnd[(nrow(tableTranscrit)-1)],tableTranscrit$Gene[1],sep="_")
-		}else{
-			IdSupp = which(tableTranscrit$gEnd<PosCryptic)[1]
-			IdInf = which(tableTranscrit$gEnd>PosCryptic)[length(which(tableTranscrit$gEnd>PosCryptic))]
-			JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gStart[IdSupp],tableTranscrit$gEnd[IdInf],tableTranscrit$Gene[1],sep="_")
-		}
-	return(JunctPhysio)
+        if(PosCryptic>=tableTranscrit$gStart[2]){
+            JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gStart[2],tableTranscrit$gEnd[1],tableTranscrit$Gene[1],sep="_")
+        }else if (PosCryptic<=tableTranscrit$gStart[nrow(tableTranscrit)]){
+            JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gStart[nrow(tableTranscrit)],
+                                tableTranscrit$gEnd[(nrow(tableTranscrit)-1)],tableTranscrit$Gene[1],sep="_")
+        }else{
+            IdSupp = which(tableTranscrit$gEnd<PosCryptic)[1]
+            IdInf = which(tableTranscrit$gEnd>PosCryptic)[length(which(tableTranscrit$gEnd>PosCryptic))]
+            JunctPhysio = paste(tableTranscrit$Chr[1],tableTranscrit$gStart[IdSupp],tableTranscrit$gEnd[IdInf],tableTranscrit$Gene[1],sep="_")
+        }
+    return(JunctPhysio)
 }
 
 
 calcJuncTo1sampleFor <- function(Conca,calcul, start, end){
-	P_junc=rep(0,n_ech)
+    P_junc=rep(0,n_ech)
 
-	if (calcul=="5AS"){
-		JunctPhysio <- getJunctionPhysioDonFor(start)
+    if (calcul=="5AS"){
+        JunctPhysio <- getJunctionPhysioDonFor(start)
 
-		read_physio_don = mean(dataTmpPhysio[JunctPhysio,input])
+        read_physio_don = mean(dataTmpPhysio[JunctPhysio,input])
 
-		if (length(read_physio_don)==0) {
-			calcul="No Ref physio"
-		}else{
-			read_alt_don=as.numeric(dataTmp[Conca,input])
-			P_junc =as.numeric((read_alt_don/read_physio_don)*100)
-		}
-	}else if (calcul=="3AS"){
-		JunctPhysio <- getJunctionPhysioAccFor(end)
+        if (length(read_physio_don)==0) {
+            calcul="No Ref physio"
+        }else{
+            read_alt_don=as.numeric(dataTmp[Conca,input])
+            P_junc =as.numeric((read_alt_don/read_physio_don)*100)
+        }
+    }else if (calcul=="3AS"){
+        JunctPhysio <- getJunctionPhysioAccFor(end)
 
-		read_physio_acc = mean(dataTmpPhysio[JunctPhysio,input])
+        read_physio_acc = mean(dataTmpPhysio[JunctPhysio,input])
 
-		if (length(read_physio_acc)==0) {
-			calcul="No Ref physio"
-		}else{
-			read_alt_acc=as.numeric(dataTmp[Conca,input])
-			P_junc =as.numeric((read_alt_acc/read_physio_acc)*100)
-		}
-	}else if (calcul=="SkipEx"){
+        if (length(read_physio_acc)==0) {
+            calcul="No Ref physio"
+        }else{
+            read_alt_acc=as.numeric(dataTmp[Conca,input])
+            P_junc =as.numeric((read_alt_acc/read_physio_acc)*100)
+        }
+    }else if (calcul=="SkipEx"){
 
-		start_saut=start
-		end_saut=end
-		read_physio_saut=dataTmpPhysio[dataTmpPhysio$start>=start_saut & dataTmpPhysio$end<=end_saut,input]
+        start_saut=start
+        end_saut=end
+        read_physio_saut=dataTmpPhysio[dataTmpPhysio$start>=start_saut & dataTmpPhysio$end<=end_saut,input]
 
-		if (length(read_physio_saut)==0) {
-			calcul="No Ref physio"
-		}else{
-			read_physio_saut=mean(as.numeric(read_physio_saut))
-			read_saut=as.numeric(na.omit(dataTmp[Conca, input]))
-			P_junc=as.numeric((read_saut/read_physio_saut)*100)
-		}
-	}
-	result <<- list(calcul, P_junc)
+        if (length(read_physio_saut)==0) {
+            calcul="No Ref physio"
+        }else{
+            read_physio_saut=mean(as.numeric(read_physio_saut))
+            read_saut=as.numeric(na.omit(dataTmp[Conca, input]))
+            P_junc=as.numeric((read_saut/read_physio_saut)*100)
+        }
+    }
+    result <<- list(calcul, P_junc)
 }
 
 calcJuncTo1sampleRev <- function(Conca,calcul, start, end){
-	P_junc=rep(0,n_ech)
-	if (calcul=="5AS"){
-		JunctPhysio <- getJunctionPhysioDonRev(end)
+    P_junc=rep(0,n_ech)
+    if (calcul=="5AS"){
+        JunctPhysio <- getJunctionPhysioDonRev(end)
 
-		read_physio_don = mean(dataTmpPhysio[JunctPhysio ,input])
+        read_physio_don = mean(dataTmpPhysio[JunctPhysio ,input])
 
-		if (length(read_physio_don)==0) {
-			calcul="No Ref physio"
-		}else{
-			read_alt_don=as.numeric(dataTmp[Conca,input])
-			P_junc =as.numeric((read_alt_don/read_physio_don)*100)
-		}
-	}else if (calcul=="3AS"){
+        if (length(read_physio_don)==0) {
+            calcul="No Ref physio"
+        }else{
+            read_alt_don=as.numeric(dataTmp[Conca,input])
+            P_junc =as.numeric((read_alt_don/read_physio_don)*100)
+        }
+    }else if (calcul=="3AS"){
 
-		JunctPhysio <- getJunctionPhysioAccRev(start)
+        JunctPhysio <- getJunctionPhysioAccRev(start)
 
-		read_physio_acc = mean(dataTmpPhysio[JunctPhysio,input])
+        read_physio_acc = mean(dataTmpPhysio[JunctPhysio,input])
 
-		if (length(read_physio_acc)==0) {
-			calcul="No Ref physio"
-		}else{
-			read_alt_acc=as.numeric(dataTmp[Conca,input])
-			P_junc =as.numeric((read_alt_acc/read_physio_acc)*100)
-		}
-	}else if (calcul=="SkipEx"){
+        if (length(read_physio_acc)==0) {
+            calcul="No Ref physio"
+        }else{
+            read_alt_acc=as.numeric(dataTmp[Conca,input])
+            P_junc =as.numeric((read_alt_acc/read_physio_acc)*100)
+        }
+    }else if (calcul=="SkipEx"){
 
-		start_saut=start
-		end_saut=end
-		read_physio_saut=dataTmpPhysio[dataTmpPhysio$start>=start_saut & dataTmpPhysio$end<=end_saut,input]
+        start_saut=start
+        end_saut=end
+        read_physio_saut=dataTmpPhysio[dataTmpPhysio$start>=start_saut & dataTmpPhysio$end<=end_saut,input]
 
-		if (length(read_physio_saut)==0) {
-			calcul="No Ref physio"
-		}else{
-			read_physio_saut=mean(as.numeric(read_physio_saut))
-			read_saut=as.numeric(na.omit(dataTmp[Conca, input]))
-			P_junc=as.numeric((read_saut/read_physio_saut)*100)
-		}
-	}
-	result <<- list(calcul, P_junc)
+        if (length(read_physio_saut)==0) {
+            calcul="No Ref physio"
+        }else{
+            read_physio_saut=mean(as.numeric(read_physio_saut))
+            read_saut=as.numeric(na.omit(dataTmp[Conca, input]))
+            P_junc=as.numeric((read_saut/read_physio_saut)*100)
+        }
+    }
+    result <<- list(calcul, P_junc)
 }
 
 calcJuncToMultiSampleFor <- function(Conca,calcul, start, end){
-	P_junc=rep(0,n_ech)
-	if (calcul=="5AS"){
+    P_junc=rep(0,n_ech)
+    if (calcul=="5AS"){
 
-		JunctPhysio <- getJunctionPhysioDonFor(start)
+        JunctPhysio <- getJunctionPhysioDonFor(start)
 
-		if (anyNA(dataTmpPhysio[JunctPhysio,input])){
-			calcul="No Ref physio"
-		}else{
-			if(nrow(dataTmpPhysio[JunctPhysio,input])>1){
-				read_physio_don = colMeans(dataTmpPhysio[JunctPhysio,input])
-			}else{
-				read_physio_don = c(unlist(dataTmpPhysio[JunctPhysio,input]))
-			}
-			read_alt=as.numeric(dataTmp[Conca,input])
-			P_junc =as.numeric((read_alt/read_physio_don)*100)
-		}
-	}else if (calcul=="3AS"){
+        if (anyNA(dataTmpPhysio[JunctPhysio,input])){
+            calcul="No Ref physio"
+        }else{
+            if(nrow(dataTmpPhysio[JunctPhysio,input])>1){
+                read_physio_don = colMeans(dataTmpPhysio[JunctPhysio,input])
+            }else{
+                read_physio_don = c(unlist(dataTmpPhysio[JunctPhysio,input]))
+            }
+            read_alt=as.numeric(dataTmp[Conca,input])
+            P_junc =as.numeric((read_alt/read_physio_don)*100)
+        }
+    }else if (calcul=="3AS"){
 
-		JunctPhysio <- getJunctionPhysioAccFor(end)
+        JunctPhysio <- getJunctionPhysioAccFor(end)
 
-		if (anyNA(dataTmpPhysio[JunctPhysio,input])){
-			calcul="No Ref physio"
-		}else{
-			if(nrow(dataTmpPhysio[JunctPhysio,input])>1){
-				read_physio_acc = colMeans(dataTmpPhysio[JunctPhysio,input])
-			}else{
-				read_physio_acc = c(unlist(dataTmpPhysio[JunctPhysio,input]))
-			}
-			read_alt_acc=as.numeric(dataTmp[Conca,input])
-			P_junc =as.numeric((read_alt_acc/read_physio_acc)*100)
-		}
-	}else if (calcul=="SkipEx"){
+        if (anyNA(dataTmpPhysio[JunctPhysio,input])){
+            calcul="No Ref physio"
+        }else{
+            if(nrow(dataTmpPhysio[JunctPhysio,input])>1){
+                read_physio_acc = colMeans(dataTmpPhysio[JunctPhysio,input])
+            }else{
+                read_physio_acc = c(unlist(dataTmpPhysio[JunctPhysio,input]))
+            }
+            read_alt_acc=as.numeric(dataTmp[Conca,input])
+            P_junc =as.numeric((read_alt_acc/read_physio_acc)*100)
+        }
+    }else if (calcul=="SkipEx"){
 
-		start_saut=start
-		end_saut=end
+        start_saut=start
+        end_saut=end
 
-		ref_physio=dataTmpPhysio[dataTmpPhysio$start>=start_saut & dataTmpPhysio$end<=end_saut,input]
-		if (is.null(ref_physio)){
-			calcul="No Ref physio"
-		}else{
-			ref_calcul = as.numeric(colMeans(ref_physio))
-			read_saut=as.numeric(na.omit(dataTmp[Conca, input]))
-			P_junc=as.numeric((read_saut/ref_calcul)*100)
-		}
-	}
-	result <<- list(calcul, P_junc)
+        ref_physio=dataTmpPhysio[dataTmpPhysio$start>=start_saut & dataTmpPhysio$end<=end_saut,input]
+        if (is.null(ref_physio)){
+            calcul="No Ref physio"
+        }else{
+            ref_calcul = as.numeric(colMeans(ref_physio))
+            read_saut=as.numeric(na.omit(dataTmp[Conca, input]))
+            P_junc=as.numeric((read_saut/ref_calcul)*100)
+        }
+    }
+    result <<- list(calcul, P_junc)
 }
 
 calcJuncToMultiSampleRev <- function(Conca,calcul, start, end){
-	P_junc=rep(0,n_ech)
+    P_junc=rep(0,n_ech)
 
-	if (calcul=="5AS"){
+    if (calcul=="5AS"){
 
-		JunctPhysio <- getJunctionPhysioDonRev(end)
-		if (anyNA(dataTmpPhysio[JunctPhysio,input])){
-			calcul="No Ref physio"
-		}else{
-			if(nrow(dataTmpPhysio[JunctPhysio,input])>1){
-				read_physio_don = colMeans(dataTmpPhysio[JunctPhysio,input])
-			}else{
-				read_physio_don = c(unlist(dataTmpPhysio[JunctPhysio,input]))
-			}
-			read_alt=as.numeric(dataTmp[Conca,input])
-			P_junc =as.numeric((read_alt/read_physio_don)*100)
-		}
-	}else if (calcul=="3AS"){
+        JunctPhysio <- getJunctionPhysioDonRev(end)
+        if (anyNA(dataTmpPhysio[JunctPhysio,input])){
+            calcul="No Ref physio"
+        }else{
+            if(nrow(dataTmpPhysio[JunctPhysio,input])>1){
+                read_physio_don = colMeans(dataTmpPhysio[JunctPhysio,input])
+            }else{
+                read_physio_don = c(unlist(dataTmpPhysio[JunctPhysio,input]))
+            }
+            read_alt=as.numeric(dataTmp[Conca,input])
+            P_junc =as.numeric((read_alt/read_physio_don)*100)
+        }
+    }else if (calcul=="3AS"){
 
-		JunctPhysio <- getJunctionPhysioAccRev(start)
-		if (anyNA(dataTmpPhysio[JunctPhysio,input])){
-			calcul="No Ref physio"
-		}else{
-			if(nrow(dataTmpPhysio[JunctPhysio,input])>1){
-				read_physio_acc = colMeans(dataTmpPhysio[JunctPhysio,input])
-			}else{
-				read_physio_acc = c(unlist(dataTmpPhysio[JunctPhysio,input]))
-			}
-			read_alt_acc=as.numeric(dataTmp[Conca,input])
-			P_junc =as.numeric((read_alt_acc/read_physio_acc)*100)
-		}
+        JunctPhysio <- getJunctionPhysioAccRev(start)
+        if (anyNA(dataTmpPhysio[JunctPhysio,input])){
+            calcul="No Ref physio"
+        }else{
+            if(nrow(dataTmpPhysio[JunctPhysio,input])>1){
+                read_physio_acc = colMeans(dataTmpPhysio[JunctPhysio,input])
+            }else{
+                read_physio_acc = c(unlist(dataTmpPhysio[JunctPhysio,input]))
+            }
+            read_alt_acc=as.numeric(dataTmp[Conca,input])
+            P_junc =as.numeric((read_alt_acc/read_physio_acc)*100)
+        }
 
-	}else if (calcul=="SkipEx"){
+    }else if (calcul=="SkipEx"){
 
-		start_saut=start
-		end_saut=end
+        start_saut=start
+        end_saut=end
 
-		ref_physio=dataTmpPhysio[dataTmpPhysio$start>=start_saut & dataTmpPhysio$end<=end_saut,input]
-		if (is.null(ref_physio)){
-			calcul="No Ref physio"
-		}else{
-			ref_calcul = as.numeric(colMeans(ref_physio))
-			read_saut=as.numeric(na.omit(dataTmp[Conca, input]))
-			P_junc=as.numeric((read_saut/ref_calcul)*100)
-		}
-	}
-	result <<- list(calcul, P_junc)
+        ref_physio=dataTmpPhysio[dataTmpPhysio$start>=start_saut & dataTmpPhysio$end<=end_saut,input]
+        if (is.null(ref_physio)){
+            calcul="No Ref physio"
+        }else{
+            ref_calcul = as.numeric(colMeans(ref_physio))
+            read_saut=as.numeric(na.omit(dataTmp[Conca, input]))
+            P_junc=as.numeric((read_saut/ref_calcul)*100)
+        }
+    }
+    result <<- list(calcul, P_junc)
 }
 
 prog=0
@@ -1060,53 +1076,57 @@ nbTrans = length(unique(data_junction$NM))
 pb1 = txtProgressBar(min = 0, max = nbTrans, initial = prog, char = "=", style = 3)
 
 if(n_ech==1){
-	for( i in unique(data_junction$NM)){
-		prog = prog+1
+    for( i in unique(data_junction$NM)){
+        prog = prog+1
         setTxtProgressBar(pb1,prog)
 
-		tmpIdTrans = which(data_junction$NM==i)
-		strand = data_junction$Strand_transcript[tmpIdTrans][1]
-		dataTmp = data_junction[tmpIdTrans,]
-		row.names(dataTmp) = dataTmp$Conca
-		dataTmpPhysio = dataTmp[dataTmp$constitutive=="Physio",]
-		tableTranscrit = tableConvert[tableConvert$transcrit==i,]
+        tmpIdTrans = which(data_junction$NM==i)
+        strand = data_junction$Strand_transcript[tmpIdTrans][1]
+        dataTmp = data_junction[tmpIdTrans,]
+        row.names(dataTmp) = dataTmp$Conca
+        dataTmpPhysio = dataTmp[dataTmp$constitutive=="Physio",]
+        tableTranscrit = tableConvert[tableConvert$transcrit==i,]
 
-		if(strand=="forward"){
-			tmp = mapply(calcJuncTo1sampleFor,Conca = dataTmp$Conca,calcul = dataTmp$event_type, start = dataTmp$start, end = dataTmp$end)
-		}else{
-			tmp = mapply(calcJuncTo1sampleRev,Conca = dataTmp$Conca,calcul = dataTmp$event_type, start = dataTmp$start, end = dataTmp$start)
-		}
-		dataTmp[,"event_type"]  = unlist(tmp[1,])
-		dataTmp[,SampleOutput] = unlist(tmp[2,])
-		data_junction[tmpIdTrans,c(SampleOutput,"event_type")] = dataTmp[,c(SampleOutput,"event_type")]
-	}
-	data_junction$mean_percent = data_junction[,output]
-	data_junction$read_mean = data_junction[,input]
+        if(strand=="forward"){
+            tmp = mapply(calcJuncTo1sampleFor,Conca = dataTmp$Conca,calcul = dataTmp$event_type, start = dataTmp$start, end = dataTmp$end)
+        }else{
+            tmp = mapply(calcJuncTo1sampleRev,Conca = dataTmp$Conca,calcul = dataTmp$event_type, start = dataTmp$start, end = dataTmp$start)
+        }
+        dataTmp[,"event_type"]  = unlist(tmp[1,])
+        dataTmp[,SampleOutput] = unlist(tmp[2,])
+        data_junction[tmpIdTrans,c(SampleOutput,"event_type")] = dataTmp[,c(SampleOutput,"event_type")]
+    }
+    data_junction$mean_percent = data_junction[,output]
+    data_junction$read_mean = data_junction[,input]
 }else{
-	for( i in unique(data_junction$NM)){
-		prog = prog+1
+    for( i in unique(data_junction$NM)){
+        prog = prog+1
         setTxtProgressBar(pb1,prog)
 
-		tmpIdTrans = which(data_junction$NM==i)
+        tmpIdTrans = which(data_junction$NM==i)
 
-		strand = data_junction$Strand_transcript[tmpIdTrans][1]
-		dataTmp = data_junction[tmpIdTrans,]
-		row.names(dataTmp) = dataTmp$Conca
-		dataTmpPhysio = dataTmp[dataTmp$constitutive=="Physio",]
-		tableTranscrit = tableConvert[tableConvert$transcrit==i,]
+        strand = data_junction$Strand_transcript[tmpIdTrans][1]
+        dataTmp = data_junction[tmpIdTrans,]
+        row.names(dataTmp) = dataTmp$Conca
+        dataTmpPhysio = dataTmp[dataTmp$constitutive=="Physio",]
+        tableTranscrit = tableConvert[tableConvert$transcrit==i,]
 
-		if(strand=="forward"){
-			tmp = mapply(calcJuncToMultiSampleFor,Conca = dataTmp$Conca,calcul = dataTmp$event_type, start = dataTmp$start, end = dataTmp$end)
-		}else{
-			tmp = mapply(calcJuncToMultiSampleRev,Conca = dataTmp$Conca,calcul = dataTmp$event_type, start = dataTmp$start, end = dataTmp$end)
-		}
-		dataTmp[,"event_type"]  = unlist(tmp[1,])
-		dataTmp[,SampleOutput] = matrix(unlist(tmp[2,]),ncol=n_ech,byrow=TRUE)
-		data_junction[tmpIdTrans,c(SampleOutput,"event_type")] = dataTmp[,c(SampleOutput,"event_type")]
-		T2bis<-as.numeric(format(Sys.time(), "%s"))
-	}
-	data_junction$mean_percent = as.numeric(rowMeans(data_junction[,output]))
-	data_junction$read_mean = as.numeric(rowMeans(data_junction[,input]))
+        if(strand=="forward"){
+            tmp = mapply(calcJuncToMultiSampleFor,Conca = dataTmp$Conca,calcul = dataTmp$event_type, start = dataTmp$start, end = dataTmp$end)
+        }else{
+            tmp = mapply(calcJuncToMultiSampleRev,Conca = dataTmp$Conca,calcul = dataTmp$event_type, start = dataTmp$start, end = dataTmp$end)
+        }
+        dataTmp[,"event_type"]  = unlist(tmp[1,])
+        dataTmp[,SampleOutput] = matrix(unlist(tmp[2,]),ncol=n_ech,byrow=TRUE)
+        data_junction[tmpIdTrans,c(SampleOutput,"event_type")] = dataTmp[,c(SampleOutput,"event_type")]
+        T2bis<-as.numeric(format(Sys.time(), "%s"))
+    }
+    #Ajout CM
+    data_junction[, output][is.na(data_junction[, output])] <- 0
+    data_junction[, input][is.na(data_junction[, input])] <- 0
+    #Fin Ajout CM
+    data_junction$mean_percent = as.numeric(rowMeans(data_junction[,output]))
+    data_junction$read_mean = as.numeric(rowMeans(data_junction[,input]))
 }
 
 #numerique convertion of outputs
@@ -1171,12 +1191,12 @@ if(checkBEDannot=="YES"){
 }
 
 checkSizeOutput <- function(data){
-	if (nrow(data)>1000000){
-		message("***More than 1,000,000 junctions to save")
-		message(paste("   remove unique junctions:",nrow(data[data$nbSamp==1,])))
-		data = data[data$nbSamp>1,]
-	}
-	return(data)
+    if (nrow(data)>1000000){
+        message("***More than 1,000,000 junctions to save")
+        message(paste("   remove unique junctions:",nrow(data[data$nbSamp==1,])))
+        data = data[data$nbSamp>1,]
+    }
+    return(data)
 }
 
 printInText <- function(data,path,name){
@@ -1189,33 +1209,33 @@ dataToPrint = subset( data_junction, select = -c(ID_gene, constitutive))
 dataToPrint = checkSizeOutput(dataToPrint)
 
 if(StatAnalysis=="NO"){
-	message("\n   Data are saving...")
+    message("\n   Data are saving...")
     if(!printText){
-		# load WriteXLS library
-		tryCatch({
-			library(WriteXLS)
-			},
-				error=function(cond) {
-					message("Here's the original error message:")
-					message(cond)
-					message("*****You need to install \'WriteXLS\' library")
-		})
+        # load WriteXLS library
+        tryCatch({
+            library(WriteXLS)
+            },
+                error=function(cond) {
+                    message("Here's the original error message:")
+                    message(cond)
+                    message("*****You need to install \'WriteXLS\' library")
+        })
 
         tryCatch({
          WriteXLS(dataToPrint, ExcelFileName =paste(chem_results,name_output,sep=""),row.names=F,SheetNames=run,Encoding = "UTF-8",na="")
         },
-         error=function(cond) {
-             message("Here's the original error message:")
-             message(cond)
-             name_output=paste(run,"_outputSpliceLauncher.csv",sep="")
-             write.table(dataToPrint,file=paste(chem_results,name_output,sep=""),row.names=F,dec=".",sep=";")
-         },
-         warning=function(cond) {
-             message("Here's the original warning message:")
-             message(cond)
-             name_output=paste(run,"_outputSpliceLauncher.csv",sep="")
-             write.table(dataToPrint,file=paste(chem_results,name_output,sep=""),row.names=F,dec=".",sep=";")
-         })
+        error=function(cond) {
+            message("Here's the original error message:")
+            message(cond)
+            name_output=paste(run,"_outputSpliceLauncher.csv",sep="")
+            write.table(dataToPrint,file=paste(chem_results,name_output,sep=""),row.names=F,dec=".",sep=";")
+        },
+        warning=function(cond) {
+            message("Here's the original warning message:")
+            message(cond)
+            name_output=paste(run,"_outputSpliceLauncher.csv",sep="")
+            write.table(dataToPrint,file=paste(chem_results,name_output,sep=""),row.names=F,dec=".",sep=";")
+        })
     }else if(printText){
         printInText(dataToPrint,chem_results,paste(run,"_outputSpliceLauncher.txt",sep=""))
     }
@@ -1341,23 +1361,36 @@ change.na<-function(x){
 # jid.column : name of column with junctions ID
 
 js2sj<-function(a, sid, jid.column){
-  if(!all(c(jid.column,sid)%in%names(a))){
-    stop("***** The 'jid' and 'sid' don't find in the columns of table")
-  }else if(length(unique(a[,jid.column]))!=nrow(a)){
-    stop("***** The junctions were not identify in unique way")
-  }
-  a = a[a$constitutive!='Physio',]
-  a = a[a$event_type!='NoData',]
-  a = a[a$nbSamp>=5,]
+    if(!all(c(jid.column,sid)%in%names(a))){
+        stop("***** The 'jid' and 'sid' don't find in the columns of table")
+    }else if(length(unique(a[,jid.column]))!=nrow(a)){
+        stop("***** The junctions were not identify in unique way")
+    }
+    a = a[a$constitutive!='Physio',]
+    a = a[a$event_type!='NoData',]
+    a = a[a$nbSamp>=5,]
 
-  for(i in 1:n_ech){
-  a[,sid[i]] = change.na(a[,sid[i]])
-  a = a[a[,sid[i]]<=1000,]
-  }
-  data = as.data.frame (t(a[,sid]))
-  names(data) = a[,jid.column]
-  row.names(data) = sid
-  return(data)
+    #Ajout CM
+    # Sélectionner les colonnes des samples
+    subset_data <- a[,SampleOutput]
+    
+    # Obtenir les indices des lignes avec au moins une valeur > 1000 ou Inf
+    indexes <- apply(subset_data, 1, function(row) {
+        any(row > 1000, na.rm = TRUE) || any(is.infinite(row))
+        })
+    readCountMax <- a[indexes, ]
+    #Fin ajout CM
+
+    for(i in 1:n_ech){
+    a[,sid[i]] = change.na(a[,sid[i]])
+    a = a[a[,sid[i]]<=1000,]
+    }
+    data = as.data.frame (t(a[,sid]))
+    names(data) = a[,jid.column]
+    row.names(data) = sid
+    #Ajout CM
+    return(list(data=data, readCountMax=readCountMax))
+    #Fin ajout CM
 }
 
 # Function to create Gamma / NegBinomial models from dataset
@@ -1368,87 +1401,87 @@ js2sj<-function(a, sid, jid.column){
 
 fit.gamma.negbinomial<-function(data, jid, negbinom.n=10){
 
-  model<-list()
-  for(j in jid){
+    model<-list()
+    for(j in jid){
 
-    model[[j]]<-list()
-    xp<-x<-data[,j]
+        model[[j]]<-list()
+        xp<-x<-data[,j]
 
-    x<-x[!is.na(x)]
-    bx<-boxplot.stats(x)
-    tot<-bx$stats[4]+1.5*(bx$stats[4]-bx$stats[2])
-    model[[j]][["outliers.ub"]]<-tot
-    nto<-0
-    if(length(bx$out>0)){
-      nto<-sum(x%in%bx$out)
-      x<-x[!x%in%bx$out]
+        x<-x[!is.na(x)]
+        bx<-boxplot.stats(x)
+        tot<-bx$stats[4]+1.5*(bx$stats[4]-bx$stats[2])
+        model[[j]][["outliers.ub"]]<-tot
+        nto<-0
+        if(length(bx$out>0)){
+        nto<-sum(x%in%bx$out)
+        x<-x[!x%in%bx$out]
+        }
+        model[[j]][["outliers.nb"]]<-nto
+
+        # Modelisation
+        m<-mean(x, na.rm=T)
+        s<-sd(x, na.rm=T)
+
+        model[[j]][["mean"]]<-m
+        model[[j]][["sd"]]<-s
+
+        if(bx$stats[4]==0){  # 3rd quartile to 0
+        model[[j]][["model"]]<-"inexistant event"
+        next
+        }
+
+        # Assay gamma distribution
+        scale<-s**2/m
+        shape<-m/scale
+        tryCatch({
+            test<-ks.test(x, pgamma, shape=shape, scale=scale)$p.value
+        },
+        error=function(cond) {
+            message("Here's the original error message:")
+            message(cond)
+            test = 0
+        })
+        if(is.na(test)) test=0
+        if(test>=0.01){ # acceptable adequation to the gamma distribution
+        model[[j]][["model"]]<-"Gamma"
+        model[[j]][["model.p"]]<-test
+        model[[j]][["scale"]]<-scale
+        model[[j]][["shape"]]<-shape
+        next
+        }
+
+        # Assay negative binomiale distribution with intervalls of negbinom.n of same size
+        step<-max(x)/negbinom.n
+        y<-as.numeric(cuter(x, cuts=c(seq(step, max(x), step)), mod="]]"))-1
+
+        my<-mean(y, na.rm=T)
+        vy<-var(y, na.rm=T)
+        prob<-my/vy  ;  size<-my*prob/(1-prob)
+
+        obs<-count(y, 0:max(y))
+        th<-dnbinom(0:(max(y)-1), size=size, prob=prob) ; th<-c(th,1-sum(th))
+        tryCatch({
+            test<-chisq.test(obs, p=th)$p.value
+
+        if(is.na(test)) test=0
+        if(test>=0.01){ # acceptable adequation to the negative binomiale distribution
+        model[[j]][["model"]]<-paste("Negative binomial ",negbinom.n,"c",sep="")
+        model[[j]][["model.p"]]<-test
+        model[[j]][["step"]]<-step
+        model[[j]][["prob"]]<-prob
+        model[[j]][["size"]]<-size
+        next
+        }
+        },
+        error=function(cond) {
+            message("Here's the original error message:")
+            message(cond)
+            model[[j]][["model"]]<-"No model"
+        })
+        model[[j]][["model"]]<-"No model"
     }
-    model[[j]][["outliers.nb"]]<-nto
 
-    # Modelisation
-    m<-mean(x, na.rm=T)
-    s<-sd(x, na.rm=T)
-
-    model[[j]][["mean"]]<-m
-    model[[j]][["sd"]]<-s
-
-    if(bx$stats[4]==0){  # 3rd quartile to 0
-      model[[j]][["model"]]<-"inexistant event"
-      next
-    }
-
-    # Assay gamma distribution
-    scale<-s**2/m
-    shape<-m/scale
-	tryCatch({
-		test<-ks.test(x, pgamma, shape=shape, scale=scale)$p.value
-	},
-	error=function(cond) {
-		message("Here's the original error message:")
-		message(cond)
-		test = 0
-	})
-	if(is.na(test)) test=0
-    if(test>=0.01){ # acceptable adequation to the gamma distribution
-      model[[j]][["model"]]<-"Gamma"
-      model[[j]][["model.p"]]<-test
-      model[[j]][["scale"]]<-scale
-      model[[j]][["shape"]]<-shape
-      next
-    }
-
-    # Assay negative binomiale distribution with intervalls of negbinom.n of same size
-    step<-max(x)/negbinom.n
-    y<-as.numeric(cuter(x, cuts=c(seq(step, max(x), step)), mod="]]"))-1
-
-    my<-mean(y, na.rm=T)
-    vy<-var(y, na.rm=T)
-    prob<-my/vy  ;  size<-my*prob/(1-prob)
-
-    obs<-count(y, 0:max(y))
-    th<-dnbinom(0:(max(y)-1), size=size, prob=prob) ; th<-c(th,1-sum(th))
-	tryCatch({
-		test<-chisq.test(obs, p=th)$p.value
-
-	if(is.na(test)) test=0
-    if(test>=0.01){ # acceptable adequation to the negative binomiale distribution
-      model[[j]][["model"]]<-paste("Negative binomial ",negbinom.n,"c",sep="")
-      model[[j]][["model.p"]]<-test
-      model[[j]][["step"]]<-step
-      model[[j]][["prob"]]<-prob
-      model[[j]][["size"]]<-size
-      next
-    }
-    },
-    error=function(cond) {
-        message("Here's the original error message:")
-        message(cond)
-        model[[j]][["model"]]<-"Aucun"
-    })
-    model[[j]][["model"]]<-"Aucun"
-  }
-
-  return(model)
+    return(model)
 }
 
 #Function to apply the previously model on a serie of values
@@ -1458,19 +1491,19 @@ fit.gamma.negbinomial<-function(data, jid, negbinom.n=10){
 
 predict.gamma.negbinomial<-function(model, x, jid){
 
-  m<-model[[jid]]
+    m<-model[[jid]]
 
-  if(m$model=="Gamma"){
-    val<-pgamma(x, shape=m$shape, scale=m$scale, lower.tail=F)
-    val[na(val==0)]<-1e-324
-  }else if(substr(m$model,1,17)=="Negative binomial"){
-    y<-as.numeric(cuter(x, cuts=c(seq(m$step, max(x,na.rm=T), m$step)), mod="]]"))-1
-    val<-pnbinom(y, size=m$size, prob=m$prob, lower.tail=F)
-    val[na(val==0)]<-1e-324
-  }else{
-    val<-rep(NA,length(x))
-  }
-  return(val)
+    if(m$model=="Gamma"){
+        val<-pgamma(x, shape=m$shape, scale=m$scale, lower.tail=F)
+        val[na(val==0)]<-1e-324
+    }else if(substr(m$model,1,17)=="Negative binomial"){
+        y<-as.numeric(cuter(x, cuts=c(seq(m$step, max(x,na.rm=T), m$step)), mod="]]"))-1
+        val<-pnbinom(y, size=m$size, prob=m$prob, lower.tail=F)
+        val[na(val==0)]<-1e-324
+    }else{
+        val<-rep(NA,length(x))
+    }
+    return(val)
 }
 
 ###########################
@@ -1481,8 +1514,12 @@ predict.gamma.negbinomial<-function(model, x, jid){
 # 2 - Fromating to an input ind*evenement : data
 message("   Creating matrix...")
 # Create table of data analysis
-data<-js2sj(a, sid, jid.column)
-jid<-names(data)[-1]
+#Ajout CM
+js2sj_results <- js2sj(a, sid, jid.column)
+data <- js2sj_results$data
+readCountMax <- js2sj_results$readCountMax
+jid<-names(data)
+#Fin ajout CM
 
 #########################
 # 3 - Modelization : model
@@ -1508,6 +1545,11 @@ message("   tmp file with p-values...")
 output1<-"output with adjustments.csv"
 write(paste("Jonction;Nb Tuckeys outliers;Ajustement;Moyenne;Ecart-type;p-value Goodness of fit;",paste(EchName,collapse=";"), sep=""), output1)
 
+#Ajout CM
+output2<-"output without adjustments.csv"
+write("Jonction;Nb Tuckeys outliers;Ajustement;Moyenne;Ecart-type",output2)
+#Fin ajout CM
+
 err = NULL
 for(j in names(model)){
 
@@ -1520,16 +1562,29 @@ for(j in names(model)){
     write(paste(j, m$outliers.nb, m$model, m$mean, m$sd, m$model.p, paste(val,collapse=";"),sep=";"), output1, append=T)
 
   }
+
+#Ajout CM
+  else {
+    write(paste(j, m$outliers.nb, m$model, m$mean, m$sd,sep=";"), output2, append=T)
+  }
+#Fin ajout CM
+
   # Evenements non modelises
   jid.other<-setdiff(names(data), c("sid",names(model)))
   if(length(jid.other)){
-	err = c(err,j)
+    err = c(err,j)
   }
 }
 message(paste("   Following modeled junctions are not in the models:",(length(err)/nrow(data_junction))*100,'%'))
 
-data_junction_pvalue = read.table("output with adjustments.csv",header=T,dec=".",sep=";")
+data_junction_pvalue = read.table("output with adjustments.csv",header=T,dec=".",sep=";", check.names = FALSE)
 data_junction_pvalue = data_junction_pvalue[order(data_junction_pvalue$Jonction),]
+
+#Ajout CM
+data_junction_without_adjustments = read.table("output without adjustments.csv",header=T,dec=".",sep=";", check.names = FALSE)
+data_junction_without_adjustments = data_junction_without_adjustments[order(data_junction_without_adjustments$Jonction),]
+#Fin ajout CM
+
 data_junction = data_junction[order(data_junction$Conca),]
 getSign = function(v,n){
     id = which(v<0.05)
@@ -1538,6 +1593,9 @@ getSign = function(v,n){
 }
 
 data_junction$DistribAjust = NA
+#Ajout CM
+data_junction$DistribAjust[data_junction$Conca%in%data_junction_without_adjustments$Jonction] = data_junction_without_adjustments$Ajustement
+#Fin ajout CM
 data_junction$DistribAjust[data_junction$Conca%in%data_junction_pvalue$Jonction] = data_junction_pvalue$Ajustement
 significative = apply(data_junction_pvalue[,EchName],1,getSign,names(data_junction)[input])
 data_junction$Significative[data_junction$Conca%in%data_junction_pvalue$Jonction] = significative
@@ -1545,8 +1603,14 @@ data_junction$filterInterpretation[substr(as.character(data_junction$Significati
 max_expr = unlist(apply(data_junction[,SampleOutput],1,max,na.rm = TRUE))
 max_expr[max_expr>100]=100
 max_expr[max_expr<0]=0
-data_junction$filterInterpretation[is.na(as.factor(data_junction$Significative)) & max_expr>1] = "Unique junction"
+#Ajout CM
+#Créer plus de filtre et permet d'être plus precis dans l'interprétation
+data_junction$filterInterpretation[is.na(as.factor(data_junction$Significative)) & is.na(as.factor(data_junction$filterInterpretation)) & data_junction$Conca %in% readCountMax$Conca] =  "Percentage threshold execeeded"
+data_junction$filterInterpretation[is.na(as.factor(data_junction$Significative)) & is.na(as.factor(data_junction$filterInterpretation)) & data_junction$DistribAjust == "No model"] = "No model"
+data_junction$filterInterpretation[is.na(as.factor(data_junction$Significative)) & is.na(as.factor(data_junction$filterInterpretation)) & data_junction$DistribAjust == "Inexistant event"] = "Inexistant event"
+data_junction$filterInterpretation[is.na(as.factor(data_junction$Significative)) & is.na(as.factor(data_junction$filterInterpretation)) & max_expr>1 & data_junction$constitutive!="Physio"] = "Unique junction"
 
+#Fin ajout CM
 dataToPrint = subset( data_junction, select = -c(ID_gene, constitutive))
 dataToPrint=dataToPrint[order(dataToPrint$Gene),]
 dataToPrint = checkSizeOutput(dataToPrint)
@@ -1560,122 +1624,146 @@ if(file.exists("output without adjustment.csv")){
 }
 
 if(!printText){
-	# load WriteXLS library
-	tryCatch({
-		library(WriteXLS)
-		},
-			error=function(cond) {
-				message("Here's the original error message:")
-				message(cond)
-				message("*****You need to install \'WriteXLS\' library")
-	})
+    # load WriteXLS library
+    tryCatch({
+        library(WriteXLS)
+        },
+            error=function(cond) {
+                message("Here's the original error message:")
+                message(cond)
+                message("*****You need to install \'WriteXLS\' library")
+    })
 
     tryCatch({
-     WriteXLS(dataToPrint, ExcelFileName =paste(chem_results,name_output,sep=""),row.names=F,SheetNames=run,Encoding = "UTF-8",na="")
+        #Modificatio CM SheetNames
+        WriteXLS(dataToPrint, ExcelFileName =paste(chem_results,name_output,sep=""),row.names=F,SheetNames="Results",Encoding = "UTF-8",na="")    
     },
      error=function(cond) {
-         message("Here's the original error message:")
-         message(cond)
-         name_output=paste(run,"_outputSpliceLauncher.csv",sep="")
-         write.table(dataToPrint,file=paste(chem_results,name_output,sep=""),row.names=F,dec=".",sep=";")
-     },
-     warning=function(cond) {
-         message("Here's the original warning message:")
-         message(cond)
-         name_output=paste(run,"_outputSpliceLauncher.csv",sep="")
-         write.table(dataToPrint,file=paste(chem_results,name_output,sep=""),row.names=F,dec=".",sep=";")
-     })
-}else if(printText){
-    printInText(dataToPrint,chem_results,paste(run,"_outputSpliceLauncher.txt",sep=""))
-}
+        message("Here's the original error message:")
+        message(cond)
+        name_output=paste(run,"_outputSpliceLauncher.csv",sep="")
+        write.table(dataToPrint,file=paste(chem_results,name_output,sep=""),row.names=F,dec=".",sep=";")
+    },
+    warning=function(cond) {
+        message("Here's the original warning message:")
+        message(cond)
+        name_output=paste(run,"_outputSpliceLauncher.csv",sep="")
+        write.table(dataToPrint,file=paste(chem_results,name_output,sep=""),row.names=F,dec=".",sep=";")
+    })
+    }else if(printText){
+        printInText(dataToPrint,chem_results,paste(run,"_outputSpliceLauncher.txt",sep=""))
+    }
 }
 
 if(DisplayGraph=="YES"){
-	# load Cairo library
-	tryCatch({
-	library(Cairo)
-	},
-		error=function(cond) {
-			message("Here's the original error message:")
-			message(cond)
-			message("*****You need to install \'Cairo\' library")
-	})
+    # load Cairo library
+    tryCatch({
+    library(Cairo)
+    },
+        error=function(cond) {
+            message("Here's the original error message:")
+            message(cond)
+            message("*****You need to install \'Cairo\' library")
+    })
 
-	chem_dessin=paste(chem_results ,run,"_figures_output/",sep="")
-	dir.create(chem_dessin,showWarnings=FALSE)
-	#########################
-	#graphic representation #
-	#########################
-	message("######################")
-	message("#Graphic representation...")
-	message("######################")
+    #chem_dessin=paste(chem_results ,run,"_figures_output/",sep="")
+    #Ajout CM
+    chem_dessin=paste(chem_results , "samples_results/",sep="")
+    #Fin ajout CM
+    dir.create(chem_dessin,showWarnings=FALSE)
+    #########################
+    #graphic representation #
+    #########################
+    message("######################")
+    message("#Graphic representation...")
+    message("######################")
 
-	getSigniDon <- function(data){
-		if(StatAnalysis=="YES"){
-			data_pvalue = data_junction_pvalue[,c(1,6+j)]
-			data_pvalue[,1] = as.character(data_pvalue[,1])
-			data= data[order(data$Conca),]
+    getSigniDon <- function(data){
+        #Ajout CM
+        if (nrow(data) == 0|| is.null(data$Conca)) {
+            return(rep(' ', 0)) 
+        }
+        #Fin ajout CM
+        if(StatAnalysis=="YES"){
+            data_pvalue = data_junction_pvalue[,c(1,6+j)]
+            data_pvalue[,1] = as.character(data_pvalue[,1])
+            data= data[order(data$Conca),]
 
-			Junc_don=as.character(na.omit(data$Conca))
-			Signi_don = rep(' ',length(Junc_don))
-			Pvalue_don = rep(1,length(Junc_don))
-			Pvalue_don[Junc_don%in%data_pvalue$Jonction] = data_pvalue[data_pvalue$Jonction%in%Junc_don,2]
-			Signi_don[Pvalue_don<0.05& Pvalue_don>0.01] = '*'
-			Signi_don[Pvalue_don<0.01& Pvalue_don>0.001] = '**'
-			Signi_don[Pvalue_don<0.001] = '***'
+            Junc_don=as.character(na.omit(data$Conca))
+            Signi_don = rep(' ',length(Junc_don))
+            Pvalue_don = rep(1,length(Junc_don))
+            Pvalue_don[Junc_don%in%data_pvalue$Jonction] = data_pvalue[data_pvalue$Jonction%in%Junc_don,2]
+            Signi_don[Pvalue_don<0.05& Pvalue_don>0.01] = '*'
+            Signi_don[Pvalue_don<0.01& Pvalue_don>0.001] = '**'
+            Signi_don[Pvalue_don<0.001] = '***'
 
-		}else{
-			Junc_don=as.character(na.omit(data$Conca))
-			Signi_don = rep(' ',length(Junc_don))
-		}
-		return(Signi_don)
-	}
+        }else{
+            Junc_don=as.character(na.omit(data$Conca))
+            Signi_don = rep(' ',length(Junc_don))
+        }
+        return(Signi_don)
+    }
 
-	getSigniAcc <- function(data){
-		if(StatAnalysis=="YES"){
-			data_pvalue = data_junction_pvalue[,c(1,6+j)]
-			data_pvalue[,1] = as.character(data_pvalue[,1])
-			data= data[order(data$Conca),]
+    getSigniAcc <- function(data){
+        #Ajout CM
+        if (nrow(data) == 0|| is.null(data$Conca)) {
+            return(rep(' ', 0)) 
+        }
+        #Fin ajout CM
+        if(StatAnalysis=="YES"){
+            data_pvalue = data_junction_pvalue[,c(1,6+j)]
+            data_pvalue[,1] = as.character(data_pvalue[,1])
+            data= data[order(data$Conca),]
 
-			Junc_acc=as.character(na.omit(data$Conca))
-			Signi_acc = rep(' ',length(Annot_acc))
-			Pvalue_acc = rep(1,length(Junc_acc))
-			Pvalue_acc[Junc_acc%in%data_pvalue$Jonction] = data_pvalue[data_pvalue$Jonction%in%Junc_acc,2]
-			Signi_acc[Pvalue_acc<0.05& Pvalue_acc>0.01] = '*'
-			Signi_acc[Pvalue_acc<0.01& Pvalue_acc>0.001] = '**'
-			Signi_acc[Pvalue_acc<0.001] = '***'
-		}else{
-			Junc_acc=as.character(na.omit(data$Conca))
-			Signi_acc = rep(' ',length(Junc_acc))
-		}
-		return(Signi_acc)
-	}
+            Junc_acc=as.character(na.omit(data$Conca))
+            Signi_acc = rep(' ',length(Annot_acc))
+            Pvalue_acc = rep(1,length(Junc_acc))
+            Pvalue_acc[Junc_acc%in%data_pvalue$Jonction] = data_pvalue[data_pvalue$Jonction%in%Junc_acc,2]
+            Signi_acc[Pvalue_acc<0.05& Pvalue_acc>0.01] = '*'
+            Signi_acc[Pvalue_acc<0.01& Pvalue_acc>0.001] = '**'
+            Signi_acc[Pvalue_acc<0.001] = '***'
+        }else{
+            Junc_acc=as.character(na.omit(data$Conca))
+            Signi_acc = rep(' ',length(Junc_acc))
+        }
+        return(Signi_acc)
+    }
 
-	getSigniSaut <- function(data){
-		if(StatAnalysis=="YES"){
-			data_pvalue = data_junction_pvalue[,c(1,6+j)]
-			data_pvalue[,1] = as.character(data_pvalue[,1])
-			data= data[order(data$Conca),]
+    getSigniSaut <- function(data){
+        #Ajout CM
+        if (nrow(data) == 0|| is.null(data$Conca)) {
+            return(rep(' ', 0)) 
+        }
+        #Fin ajout CM
+        if(StatAnalysis=="YES"){
+            data_pvalue = data_junction_pvalue[,c(1,6+j)]
+            data_pvalue[,1] = as.character(data_pvalue[,1])
+            data= data[order(data$Conca),]
 
-			Junc_saut=as.character(na.omit(data$Conca))
-			Signi_saut = rep(' ',length(Junc_saut))
-			Pvalue_saut = rep(1,length(Junc_saut))
-			Pvalue_saut[Junc_saut%in%data_pvalue$Jonction] = data_pvalue[data_pvalue$Jonction%in%Junc_saut,2]
-			Signi_saut[Pvalue_saut<0.05& Pvalue_saut>0.01] = '*'
-			Signi_saut[Pvalue_saut<0.01& Pvalue_saut>0.001] = '**'
-			Signi_saut[Pvalue_saut<0.001] = '***'
-		}else{
-			Junc_saut=as.character(na.omit(data$Conca))
-			Signi_saut = rep(' ',length(Junc_saut))
-		}
-		return(Signi_saut)
-	}
+            Junc_saut=as.character(na.omit(data$Conca))
+            Signi_saut = rep(' ',length(Junc_saut))
+            Pvalue_saut = rep(1,length(Junc_saut))
+            Pvalue_saut[Junc_saut%in%data_pvalue$Jonction] = data_pvalue[data_pvalue$Jonction%in%Junc_saut,2]
+            Signi_saut[Pvalue_saut<0.05& Pvalue_saut>0.01] = '*'
+            Signi_saut[Pvalue_saut<0.01& Pvalue_saut>0.001] = '**'
+            Signi_saut[Pvalue_saut<0.001] = '***'
+        }else{
+            Junc_saut=as.character(na.omit(data$Conca))
+            Signi_saut = rep(' ',length(Junc_saut))
+        }
+        return(Signi_saut)
+    }
 
-	getFont <- function(Signi){
-		Font = rep(1,length(Signi))
-		Font[Signi!=" "]=4
-		return(Font)
-	}
+    getFont <- function(Signi){
+        #Ajout CM
+        if (length(Signi) == 0){
+            return(rep(1, 0))
+        }
+        #Fin ajout CM
+        Font = rep(1,length(Signi))
+        Font[Signi!=" "]=4
+        return(Font)
+    }
 
     maxReadCount = apply(data_junction[data_junction$constitutive=="Physio",input],1,max,na.rm=TRUE)
     plottedGene = as.character(data_junction$Gene[data_junction$constitutive=="Physio"])
@@ -1685,182 +1773,722 @@ if(DisplayGraph=="YES"){
     plottedGene = plottedGene[duplicated(plottedGene)]
     message(paste("  ",length(plottedGene),"plotted gene(s)"))
     data_junction = data_junction[which(data_junction$Gene %in% plottedGene),]
-	data_junction=data_junction[order(data_junction$start),]
-	lty='dotted'
+    data_junction=data_junction[order(data_junction$start),]
+    lty='dotted'
     id_gene = unique(data_junction$ID_gene)
     id_gene = id_gene[order(id_gene)]
+    #Ajout CM
+    unique_genes <- data_junction[!is.na(data_junction$filterInterpretation) & data_junction$filterInterpretation == "Unique junction", ]
+    #Fin CM
 
-	for(j in 1:length(EchName)){
-		message(paste("   Graphics for:",EchName[j]))
+    for(j in 1:length(EchName)){
+        #Ajout CM
+        #Create directory
+        output_dir <- paste(chem_dessin, EchName[j], sep="/")
+        if (!dir.exists(output_dir)) {
+            dir.create(output_dir, recursive = TRUE)
+        }
+        message(paste("   Graphics for:",EchName[j]))
 
-		CairoPDF(file=paste(chem_dessin,run,"_",EchName[j],".pdf",sep=""),width =60, height = 12)
+        #CairoPDF(file=paste(chem_dessin,run,"_",EchName[j],".pdf",sep=""),width =60, height = 12)
+        CairoPDF(file=paste(output_dir, "/", EchName[j], ".pdf", sep=""), width = 60, height = 12)
+        #Fin CM
 
-		data_junction$mean_percent = data_junction[,SampleOutput[j]]
-		data_junction$mean_percent[data_junction$mean_percent=='Inf']=100
+        data_junction$mean_percent = data_junction[,SampleOutput[j]]
+        data_junction$mean_percent[data_junction$mean_percent=='Inf']=100
         GeneMis = 0
-		for(i in id_gene){
-			data_gene = data_junction[data_junction$ID_gene==i & data_junction$event_type!="NoData",]
+        for(i in id_gene){
+            data_gene = data_junction[data_junction$ID_gene==i & data_junction$event_type!="NoData",]
 
-			if(max(data_gene[data_gene$constitutive=="Physio",input[j]])<100){
-				GeneMis = GeneMis+1
+            if(max(data_gene[data_gene$constitutive=="Physio",input[j]])<100){
+                GeneMis = GeneMis+1
             }else{
 
                 if(data_gene$Strand_transcript[1]=="forward"){
 
-					start_physio=data_gene$start[data_gene$constitutive=="Physio"]
-					lab_physio=c(1:(length(start_physio)+1))
-					end_physio=data_gene$end[data_gene$constitutive=="Physio"]
-					mean_read_physio=data_gene[data_gene$constitutive=="Physio",SampleInput[j]]
-					h_physio=log(mean_read_physio)/20
+                    start_physio=data_gene$start[data_gene$constitutive=="Physio"]
+                    lab_physio=c(1:(length(start_physio)+1))
+                    end_physio=data_gene$end[data_gene$constitutive=="Physio"]
+                    mean_read_physio=data_gene[data_gene$constitutive=="Physio",SampleInput[j]]
+                    h_physio=log(mean_read_physio)/20
 
-					start_don=as.numeric(na.omit(data_gene$start[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
-					end_don=as.numeric(na.omit(data_gene$end[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
-					P_don=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
-					Annot_don=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
-					Signi_don = getSigniDon(data_gene[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr,])
-					font_Don = getFont(Signi_don)
+                    start_don=as.numeric(na.omit(data_gene$start[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                    end_don=as.numeric(na.omit(data_gene$end[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                    P_don=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                    Annot_don=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                    Signi_don = getSigniDon(data_gene[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr,])
+                    font_Don = getFont(Signi_don)
 
-					start_acc=as.numeric(na.omit(data_gene$start[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
-					end_acc=as.numeric(na.omit(data_gene$end[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
-					P_acc=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
-					Annot_acc=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
-					Signi_acc = getSigniAcc(data_gene[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr,])
-					font_Acc = getFont(Signi_acc)
+                    start_acc=as.numeric(na.omit(data_gene$start[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                    end_acc=as.numeric(na.omit(data_gene$end[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                    P_acc=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                    Annot_acc=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                    Signi_acc = getSigniAcc(data_gene[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr,])
+                    font_Acc = getFont(Signi_acc)
 
-					start_saut=as.numeric(na.omit(data_gene$start[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
-					P_saut=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
-					Annot_saut=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
-					end_saut=as.numeric(na.omit(data_gene$end[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
-					Signi_saut = getSigniSaut(data_gene[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr,])
-					font_Saut = getFont(Signi_saut)
+                    start_saut=as.numeric(na.omit(data_gene$start[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                    P_saut=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                    Annot_saut=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                    end_saut=as.numeric(na.omit(data_gene$end[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                    Signi_saut = getSigniSaut(data_gene[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr,])
+                    font_Saut = getFont(Signi_saut)
 
-					min_x=min(c(start_don,start_physio,start_saut))
-					max_x=max(c(end_don,end_physio,end_saut,end_acc))
+                    min_x=min(c(start_don,start_physio,start_saut))
+                    max_x=max(c(end_don,end_physio,end_saut,end_acc))
 
-					plot(x=0,xlim=c(min_x,max_x),ylim=c(0.8,2.5),xlab=data_gene$Strand_transcript[1],
-						main=paste(data_gene$Gene[1],paste("(",unique(data_gene$NM),")",sep=""),
-						">",thr,"%",run),cex.main=4,cex.lab=3, yaxt="n", ylab="")
-					segments(x0=min(start_physio),y0=1.3,y1=1.3,x1=max(end_physio),col='black',lwd=6)
-					rect(xleft=start_physio[-1],xright=end_physio[-length(end_physio)],ytop=rep(1.40,length(start_physio[-1])),
-						ybottom=rep(1.20,length(end_physio)),col='blue')
-					rect(xleft=min(c(start_don,start_physio,start_saut)),xright=start_physio[1],ytop=1.45,ybottom=1.15,col='blue')
-					abline(h=seq(from=2.1,to=2.3,by=0.2),col='gray85',lty=2,lwd=1)
-					abline(h=seq(from=2,to=2.5,by=0.2),col='gray70',lty=2,lwd=1)
-					rect(xleft=start_physio + (end_physio - start_physio)/2 -((max_x-min_x)/800),
-						xright=start_physio + (end_physio - start_physio)/2+((max_x-min_x)/800),
-						ytop=h_physio+1.7,ybottom=2,col='blue')
-					rect(xleft=end_physio[length(end_physio)],xright=max(c(end_physio,end_acc,end_saut)),ytop=1.45,ybottom=1.15,col='blue')
-					segments(x0=start_don,y0=rep(1.25,length(start_don)),y1=rep(1.35,length(start_don)),x1=start_don,col='red',lwd=3)
-					segments(x0=end_acc,y0=rep(1.25,length(end_acc)),y1=rep(1.35,length(end_acc)),x1=end_acc,col='green',lwd=3)
-					segments(x0=start_don,y0=rep(1.3,length(start_don)),y1=rep(1.0,length(start_don)),x1=start_don+(end_don-start_don)/2,col='red',
-						lty=lty,lwd=3)
-					segments(x0=start_don+(end_don-start_don)/2,y0=rep(1.0,length(start_don)),y1=rep(1.3,length(start_don)),x1=end_don,col='red',
-						lty=lty,lwd=3)
-					segments(x0=start_acc,y0=rep(1.3,length(start_acc)),y1=rep(1.0,length(start_acc)),x1=start_acc+(end_acc-start_acc)/2,col='green',
-						lty=lty,lwd=3)
-					segments(x0=start_acc+(end_acc-start_acc)/2,y0=rep(1.0,length(start_acc)),y1=rep(1.3,length(start_acc)),x1=end_acc,col='green',
-						lty=lty,lwd=3)
-					segments(x0=start_saut,y0=rep(1.4,length(start_saut)),y1=rep(1.6,length(start_saut)),x1=start_saut+(end_saut-start_saut)/2,col='blue',
-						lty=lty,lwd=3)
-					segments(x0=start_saut+(end_saut-start_saut)/2,y0=rep(1.6,length(start_saut)),y1=rep(1.4,length(start_saut)),x1=end_saut,col='blue',
-						lty=lty,lwd=3)
-					text(y=rep(1.1,length(c(start_physio,max(end_physio)))),cex=2,x=c(min(start_physio),
-						start_physio[-1]+( end_physio[-length(end_physio)]- start_physio[-1])/2,max(end_physio)),
-						labels=c(lab_physio))
-					text(y=2.5,x=min_x+(max_x-min_x)*0.05,labels="Physiological expression:",bg='white',cex=2.5,font=4)
-					text(y=1.9,x=min_x+(max_x-min_x)*0.05,labels="Alternative splicing:",bg='white',cex=2.5,font=4)
-					text(y=2.42,x=min_x+(max_x-min_x)*0.05,labels=paste("Global expression =",round(mean(mean_read_physio),0)),bg='white',cex=2)
-					text(y=h_physio+1.75,x=start_physio + (end_physio - start_physio)/2 -((max_x-min_x)/800),
-						labels=round(mean_read_physio,0),bg='white',cex=1)
-					text(y=c(1.7,1.8),x=start_saut+(end_saut-start_saut)/2,labels=paste(Annot_saut,":",round(P_saut,2),"%",Signi_saut),
-						bg='white',cex=1.5,col='blue',font = font_Saut)
-					text(y=c(0.95,0.9),x=start_don+(end_don-start_don)/2,labels=paste(Annot_don,":",round(P_don,2),"%",Signi_don),
-						bg='white',cex=1.5,col='red',font = font_Don)
-					text(y=c(0.85,0.8),x=start_acc+(end_acc-start_acc)/2,labels=paste(Annot_acc,":",round(P_acc,2),"%",Signi_acc),
-						bg='white',cex=1.5,col='green',font = font_Acc)
+                    plot(x=0,xlim=c(min_x,max_x),ylim=c(0.8,2.5),xlab=data_gene$Strand_transcript[1],
+                        main=paste(data_gene$Gene[1],paste("(",unique(data_gene$NM),")",sep=""),
+                        ">",thr,"%",run),cex.main=4,cex.lab=3, yaxt="n", ylab="")
+                    segments(x0=min(start_physio),y0=1.3,y1=1.3,x1=max(end_physio),col='black',lwd=6)
+                    rect(xleft=start_physio[-1],xright=end_physio[-length(end_physio)],ytop=rep(1.40,length(start_physio[-1])),
+                        ybottom=rep(1.20,length(end_physio)),col='blue')
+                    rect(xleft=min(c(start_don,start_physio,start_saut)),xright=start_physio[1],ytop=1.45,ybottom=1.15,col='blue')
+                    abline(h=seq(from=2.1,to=2.3,by=0.2),col='gray85',lty=2,lwd=1)
+                    abline(h=seq(from=2,to=2.5,by=0.2),col='gray70',lty=2,lwd=1)
+                    rect(xleft=start_physio + (end_physio - start_physio)/2 -((max_x-min_x)/800),
+                        xright=start_physio + (end_physio - start_physio)/2+((max_x-min_x)/800),
+                        ytop=h_physio+1.7,ybottom=2,col='blue')
+                    rect(xleft=end_physio[length(end_physio)],xright=max(c(end_physio,end_acc,end_saut)),ytop=1.45,ybottom=1.15,col='blue')
+                    segments(x0=start_don,y0=rep(1.25,length(start_don)),y1=rep(1.35,length(start_don)),x1=start_don,col='red',lwd=3)
+                    segments(x0=end_acc,y0=rep(1.25,length(end_acc)),y1=rep(1.35,length(end_acc)),x1=end_acc,col='green',lwd=3)
+                    segments(x0=start_don,y0=rep(1.3,length(start_don)),y1=rep(1.0,length(start_don)),x1=start_don+(end_don-start_don)/2,col='red',
+                        lty=lty,lwd=3)
+                    segments(x0=start_don+(end_don-start_don)/2,y0=rep(1.0,length(start_don)),y1=rep(1.3,length(start_don)),x1=end_don,col='red',
+                        lty=lty,lwd=3)
+                    segments(x0=start_acc,y0=rep(1.3,length(start_acc)),y1=rep(1.0,length(start_acc)),x1=start_acc+(end_acc-start_acc)/2,col='green',
+                        lty=lty,lwd=3)
+                    segments(x0=start_acc+(end_acc-start_acc)/2,y0=rep(1.0,length(start_acc)),y1=rep(1.3,length(start_acc)),x1=end_acc,col='green',
+                        lty=lty,lwd=3)
+                    segments(x0=start_saut,y0=rep(1.4,length(start_saut)),y1=rep(1.6,length(start_saut)),x1=start_saut+(end_saut-start_saut)/2,col='blue',
+                        lty=lty,lwd=3)
+                    segments(x0=start_saut+(end_saut-start_saut)/2,y0=rep(1.6,length(start_saut)),y1=rep(1.4,length(start_saut)),x1=end_saut,col='blue',
+                        lty=lty,lwd=3)
+                    text(y=rep(1.1,length(c(start_physio,max(end_physio)))),cex=2,x=c(min(start_physio),
+                        start_physio[-1]+( end_physio[-length(end_physio)]- start_physio[-1])/2,max(end_physio)),
+                        labels=c(lab_physio))
+                    text(y=2.5,x=min_x+(max_x-min_x)*0.05,labels="Physiological expression:",bg='white',cex=2.5,font=4)
+                    text(y=1.9,x=min_x+(max_x-min_x)*0.05,labels="Alternative splicing:",bg='white',cex=2.5,font=4)
+                    text(y=2.42,x=min_x+(max_x-min_x)*0.05,labels=paste("Global expression =",round(mean(mean_read_physio),0)),bg='white',cex=2)
+                    text(y=h_physio+1.75,x=start_physio + (end_physio - start_physio)/2 -((max_x-min_x)/800),
+                        labels=round(mean_read_physio,0),bg='white',cex=1)
+                    text(y=c(1.7,1.8),x=start_saut+(end_saut-start_saut)/2,labels=paste(Annot_saut,":",round(P_saut,2),"%",Signi_saut),
+                        bg='white',cex=1.5,col='blue',font = font_Saut)
+                    text(y=c(0.95,0.9),x=start_don+(end_don-start_don)/2,labels=paste(Annot_don,":",round(P_don,2),"%",Signi_don),
+                        bg='white',cex=1.5,col='red',font = font_Don)
+                    text(y=c(0.85,0.8),x=start_acc+(end_acc-start_acc)/2,labels=paste(Annot_acc,":",round(P_acc,2),"%",Signi_acc),
+                        bg='white',cex=1.5,col='green',font = font_Acc)
 
-				}else if (data_gene$Strand_transcript[1]=="reverse"){
+                }else if (data_gene$Strand_transcript[1]=="reverse"){
 
-					data_gene=data_gene[order(data_gene$start),]
-					end_physio=data_gene$end[data_gene$constitutive=="Physio"]
-					start_physio=data_gene$start[data_gene$constitutive=="Physio"]
-					lab_physio=c((length(end_physio)+1):1)
-					mean_read_physio=data_gene[data_gene$constitutive=="Physio",SampleInput[j]]
-					h_physio=log(mean_read_physio)/20
+                    data_gene=data_gene[order(data_gene$start),]
+                    end_physio=data_gene$end[data_gene$constitutive=="Physio"]
+                    start_physio=data_gene$start[data_gene$constitutive=="Physio"]
+                    lab_physio=c((length(end_physio)+1):1)
+                    mean_read_physio=data_gene[data_gene$constitutive=="Physio",SampleInput[j]]
+                    h_physio=log(mean_read_physio)/20
 
-					start_don=as.numeric(na.omit(data_gene$end[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
-					end_don=as.numeric(na.omit(data_gene$start[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
-					P_don=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
-					Annot_don=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
-					Signi_don = getSigniDon(data_gene[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr,])
-					font_Don = getFont(Signi_don)
+                    start_don=as.numeric(na.omit(data_gene$end[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                    end_don=as.numeric(na.omit(data_gene$start[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                    P_don=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                    Annot_don=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                    Signi_don = getSigniDon(data_gene[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr,])
+                    font_Don = getFont(Signi_don)
 
-					start_acc=as.numeric(na.omit(data_gene$end[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
-					end_acc=as.numeric(na.omit(data_gene$start[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
-					P_acc=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
-					Annot_acc=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
-					Signi_acc = getSigniAcc(data_gene[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr,])
-					font_Acc = getFont(Signi_acc)
+                    start_acc=as.numeric(na.omit(data_gene$end[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                    end_acc=as.numeric(na.omit(data_gene$start[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                    P_acc=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                    Annot_acc=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                    Signi_acc = getSigniAcc(data_gene[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr,])
+                    font_Acc = getFont(Signi_acc)
 
-					start_saut=as.numeric(na.omit(data_gene$end[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
-					end_saut=as.numeric(na.omit(data_gene$start[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
-					P_saut=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
-					Annot_saut=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
-					Signi_saut = getSigniSaut(data_gene[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr,])
-					font_Saut = getFont(Signi_saut)
+                    start_saut=as.numeric(na.omit(data_gene$end[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                    end_saut=as.numeric(na.omit(data_gene$start[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                    P_saut=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                    Annot_saut=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                    Signi_saut = getSigniSaut(data_gene[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr,])
+                    font_Saut = getFont(Signi_saut)
 
-					min_x=min(c(end_physio,end_acc,end_saut,start_don,start_physio,start_saut))
-					max_x=max(c(start_don,start_physio,start_saut,end_physio,end_acc,end_saut))
+                    min_x=min(c(end_physio,end_acc,end_saut,start_don,start_physio,start_saut))
+                    max_x=max(c(start_don,start_physio,start_saut,end_physio,end_acc,end_saut))
 
-					plot(x=0,xlim=c(min_x,max_x),ylim=c(0.8,2.5),cex.main=4,cex.lab=3,xlab=data_gene$Strand_transcript[1],
-						main=paste(data_gene$Gene[1],paste("(",unique(data_gene$NM),")",sep=""),
-						">",thr,"%",run), yaxt="n", ylab="")
-					segments(x0=min(start_physio),y0=1.3,y1=1.3,x1=max(end_physio),col='black',lwd=6)
-					rect(xleft=start_physio[-1],xright=end_physio[-length(end_physio)],ytop=rep(1.40,length(start_physio[-1])),
-						ybottom=rep(1.20,length(end_physio)),col='blue')
-					abline(h=seq(from=2.1,to=2.3,by=0.2),col='gray85',lty=2,lwd=1)
-					abline(h=seq(from=2,to=2.4,by=0.2),col='gray70',lty=2,lwd=1)
-					rect(xleft=end_physio + (start_physio-end_physio)/2+((max_x-min_x)/800),
-						xright=end_physio + (start_physio-end_physio)/2-((max_x-min_x)/800),
-						ytop=h_physio+1.7,ybottom=2,col='blue')
-					rect(xleft=min(c(start_don,start_physio,start_saut)),xright=start_physio[1],ytop=1.45,ybottom=1.15,col='blue')
-					rect(xleft=end_physio[length(end_physio)],xright=max(c(end_physio,end_acc,end_saut)),ytop=1.45,ybottom=1.15,col='blue')
-					segments(x0=start_don,y0=rep(1.25,length(start_don)),y1=rep(1.35,length(start_don)),x1=start_don,col='red',lwd=3)
-					segments(x0=end_acc,y0=rep(1.25,length(end_acc)),y1=rep(1.35,length(end_acc)),x1=end_acc,col='green',lwd=3)
-					segments(x0=start_saut,y0=rep(1.4,length(start_saut)),y1=rep(1.6,length(start_saut)),x1=start_saut+(end_saut-start_saut)/2,col='blue',
-						lty=lty,lwd=3)
-					segments(x0=start_saut+(end_saut-start_saut)/2,y0=rep(1.6,length(start_saut)),y1=rep(1.4,length(start_saut)),x1=end_saut,col='blue',
-						lty=lty,lwd=3)
-					segments(x0=start_don,y0=rep(1.3,length(start_don)),y1=rep(1,length(start_don)),x1=start_don+(end_don-start_don)/2,col='red',
-						lty=lty,lwd=3)
-					segments(x0=start_don+(end_don-start_don)/2,y0=rep(1,length(start_don)),y1=rep(1.3,length(start_don)),x1=end_don,col='red',
-						lty=lty,lwd=3)
-					segments(x0=start_acc,y0=rep(1.3,length(start_acc)),y1=rep(1,length(start_acc)),x1=start_acc+(end_acc-start_acc)/2,col='green',
-						lty=lty,lwd=3)
-					segments(x0=start_acc+(end_acc-start_acc)/2,y0=rep(1,length(start_acc)),y1=rep(1.3,length(start_acc)),x1=end_acc,col='green',
-						lty=lty,lwd=3)
-					text(y=rep(1.1,length(c(end_physio,max(start_physio)))),cex=2,x=c(min(start_physio),
-						end_physio[-length(end_physio)]+( start_physio[-1]- end_physio[-length(end_physio)])/2,max(end_physio)),
-						labels=c(lab_physio))
-					text(y=2.5,x=min_x+(max_x-min_x)*0.05,labels="Physiological expression:",bg='white',cex=2.5,font=4)
-					text(y=1.9,x=min_x+(max_x-min_x)*0.05,labels="Alternative splicing:",bg='white',cex=2.5,font=4)
-					text(y=2.42,x=min_x+(max_x-min_x)*0.05,labels=paste("Global expression =",round(mean(mean_read_physio),0)),bg='white',cex=2)
-					text(y=h_physio+1.75,x=end_physio + (start_physio-end_physio)/2+((max_x-min_x)/800),
-						labels=round(mean_read_physio,0),bg='white',cex=1)
-					text(y=c(1.7,1.8),x=end_saut+(start_saut-end_saut)/2,labels=paste(Annot_saut,":",round(P_saut,2),"%",Signi_saut),
-						bg='white',cex=1.5,col='blue',font = font_Saut)
-					text(y=c(0.95,0.9),x=end_don+(start_don-end_don)/2,labels=paste(Annot_don,":",round(P_don,2),"%",Signi_don),
-						bg='white',cex=1.5,col='red',font = font_Don)
-					text(y=c(0.85,0.8),x=end_acc+(start_acc-end_acc)/2,labels=paste(Annot_acc,":",round(P_acc,2),"%",Signi_acc),
-						bg='white',cex=1.5,col='green',font = font_Acc)
-				}
-			}
-		}
+                    plot(x=0,xlim=c(min_x,max_x),ylim=c(0.8,2.5),cex.main=4,cex.lab=3,xlab=data_gene$Strand_transcript[1],
+                        main=paste(data_gene$Gene[1],paste("(",unique(data_gene$NM),")",sep=""),
+                        ">",thr,"%",run), yaxt="n", ylab="")
+                    segments(x0=min(start_physio),y0=1.3,y1=1.3,x1=max(end_physio),col='black',lwd=6)
+                    rect(xleft=start_physio[-1],xright=end_physio[-length(end_physio)],ytop=rep(1.40,length(start_physio[-1])),
+                        ybottom=rep(1.20,length(end_physio)),col='blue')
+                    abline(h=seq(from=2.1,to=2.3,by=0.2),col='gray85',lty=2,lwd=1)
+                    abline(h=seq(from=2,to=2.4,by=0.2),col='gray70',lty=2,lwd=1)
+                    rect(xleft=end_physio + (start_physio-end_physio)/2+((max_x-min_x)/800),
+                        xright=end_physio + (start_physio-end_physio)/2-((max_x-min_x)/800),
+                        ytop=h_physio+1.7,ybottom=2,col='blue')
+                    rect(xleft=min(c(start_don,start_physio,start_saut)),xright=start_physio[1],ytop=1.45,ybottom=1.15,col='blue')
+                    rect(xleft=end_physio[length(end_physio)],xright=max(c(end_physio,end_acc,end_saut)),ytop=1.45,ybottom=1.15,col='blue')
+                    segments(x0=start_don,y0=rep(1.25,length(start_don)),y1=rep(1.35,length(start_don)),x1=start_don,col='red',lwd=3)
+                    segments(x0=end_acc,y0=rep(1.25,length(end_acc)),y1=rep(1.35,length(end_acc)),x1=end_acc,col='green',lwd=3)
+                    segments(x0=start_saut,y0=rep(1.4,length(start_saut)),y1=rep(1.6,length(start_saut)),x1=start_saut+(end_saut-start_saut)/2,col='blue',
+                        lty=lty,lwd=3)
+                    segments(x0=start_saut+(end_saut-start_saut)/2,y0=rep(1.6,length(start_saut)),y1=rep(1.4,length(start_saut)),x1=end_saut,col='blue',
+                        lty=lty,lwd=3)
+                    segments(x0=start_don,y0=rep(1.3,length(start_don)),y1=rep(1,length(start_don)),x1=start_don+(end_don-start_don)/2,col='red',
+                        lty=lty,lwd=3)
+                    segments(x0=start_don+(end_don-start_don)/2,y0=rep(1,length(start_don)),y1=rep(1.3,length(start_don)),x1=end_don,col='red',
+                        lty=lty,lwd=3)
+                    segments(x0=start_acc,y0=rep(1.3,length(start_acc)),y1=rep(1,length(start_acc)),x1=start_acc+(end_acc-start_acc)/2,col='green',
+                        lty=lty,lwd=3)
+                    segments(x0=start_acc+(end_acc-start_acc)/2,y0=rep(1,length(start_acc)),y1=rep(1.3,length(start_acc)),x1=end_acc,col='green',
+                        lty=lty,lwd=3)
+                    text(y=rep(1.1,length(c(end_physio,max(start_physio)))),cex=2,x=c(min(start_physio),
+                        end_physio[-length(end_physio)]+( start_physio[-1]- end_physio[-length(end_physio)])/2,max(end_physio)),
+                        labels=c(lab_physio))
+                    text(y=2.5,x=min_x+(max_x-min_x)*0.05,labels="Physiological expression:",bg='white',cex=2.5,font=4)
+                    text(y=1.9,x=min_x+(max_x-min_x)*0.05,labels="Alternative splicing:",bg='white',cex=2.5,font=4)
+                    text(y=2.42,x=min_x+(max_x-min_x)*0.05,labels=paste("Global expression =",round(mean(mean_read_physio),0)),bg='white',cex=2)
+                    text(y=h_physio+1.75,x=end_physio + (start_physio-end_physio)/2+((max_x-min_x)/800),
+                        labels=round(mean_read_physio,0),bg='white',cex=1)
+                    text(y=c(1.7,1.8),x=end_saut+(start_saut-end_saut)/2,labels=paste(Annot_saut,":",round(P_saut,2),"%",Signi_saut),
+                        bg='white',cex=1.5,col='blue',font = font_Saut)
+                    text(y=c(0.95,0.9),x=end_don+(start_don-end_don)/2,labels=paste(Annot_don,":",round(P_don,2),"%",Signi_don),
+                        bg='white',cex=1.5,col='red',font = font_Don)
+                    text(y=c(0.85,0.8),x=end_acc+(start_acc-end_acc)/2,labels=paste(Annot_acc,":",round(P_acc,2),"%",Signi_acc),
+                        bg='white',cex=1.5,col='green',font = font_Acc)
+                }
+            }
+        }
         message(paste("    Not enough read on physiological junctions for",if(GeneMis!=0){GeneMis}else{"NONE"},"gene(s)"))
-		dev.off()
-	}
-}
+        dev.off()
+    }
 
+    #Ajout CM
+    #Create plot for significant genes
+    for(j in 1:length(EchName)){
+        message(paste("   Graphics significant genes for:",EchName[j]))
+
+        CairoPDF(file=paste(chem_dessin,EchName[j],"/", EchName[j] , ".significant_genes.pdf",sep=""),width =60, height = 12)
+
+        data_junction$mean_percent = data_junction[,SampleOutput[j]]
+        data_junction$mean_percent[data_junction$mean_percent=='Inf']=100
+        GeneMis = 0
+        for(i in id_gene){
+            data_gene = data_junction[data_junction$ID_gene==i & data_junction$event_type!="NoData",]
+            if(max(data_gene[data_gene$constitutive=="Physio",input[j]])<100){
+                GeneMis = GeneMis+1
+            }else{
+                if (any(grepl(EchName[j], data_gene$Significative))){
+                    if(data_gene$Strand_transcript[1]=="forward"){
+
+                        start_physio=data_gene$start[data_gene$constitutive=="Physio"]
+                        lab_physio=c(1:(length(start_physio)+1))
+                        end_physio=data_gene$end[data_gene$constitutive=="Physio"]
+                        mean_read_physio=data_gene[data_gene$constitutive=="Physio",SampleInput[j]]
+                        h_physio=log(mean_read_physio)/20
+
+                        start_don=as.numeric(na.omit(data_gene$start[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                        end_don=as.numeric(na.omit(data_gene$end[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                        P_don=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                        Annot_don=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                        Signi_don = getSigniDon(data_gene[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr,])
+                        font_Don = getFont(Signi_don)
+
+                        start_acc=as.numeric(na.omit(data_gene$start[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                        end_acc=as.numeric(na.omit(data_gene$end[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                        P_acc=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                        Annot_acc=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                        Signi_acc = getSigniAcc(data_gene[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr,])
+                        font_Acc = getFont(Signi_acc)
+
+                        start_saut=as.numeric(na.omit(data_gene$start[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                        P_saut=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                        Annot_saut=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                        end_saut=as.numeric(na.omit(data_gene$end[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                        Signi_saut = getSigniSaut(data_gene[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr,])
+                        font_Saut = getFont(Signi_saut)
+
+                        min_x=min(c(start_don,start_physio,start_saut))
+                        max_x=max(c(end_don,end_physio,end_saut,end_acc))
+
+                        plot(x=0,xlim=c(min_x,max_x),ylim=c(0.8,2.5),xlab=data_gene$Strand_transcript[1],
+                            main=paste(data_gene$Gene[1],paste("(",unique(data_gene$NM),")",sep=""),
+                            ">",thr,"%",run),cex.main=4,cex.lab=3, yaxt="n", ylab="")
+                        segments(x0=min(start_physio),y0=1.3,y1=1.3,x1=max(end_physio),col='black',lwd=6)
+                        rect(xleft=start_physio[-1],xright=end_physio[-length(end_physio)],ytop=rep(1.40,length(start_physio[-1])),
+                            ybottom=rep(1.20,length(end_physio)),col='blue')
+                        rect(xleft=min(c(start_don,start_physio,start_saut)),xright=start_physio[1],ytop=1.45,ybottom=1.15,col='blue')
+                        abline(h=seq(from=2.1,to=2.3,by=0.2),col='gray85',lty=2,lwd=1)
+                        abline(h=seq(from=2,to=2.5,by=0.2),col='gray70',lty=2,lwd=1)
+                        rect(xleft=start_physio + (end_physio - start_physio)/2 -((max_x-min_x)/800),
+                            xright=start_physio + (end_physio - start_physio)/2+((max_x-min_x)/800),
+                            ytop=h_physio+1.7,ybottom=2,col='blue')
+                        rect(xleft=end_physio[length(end_physio)],xright=max(c(end_physio,end_acc,end_saut)),ytop=1.45,ybottom=1.15,col='blue')
+                        segments(x0=start_don,y0=rep(1.25,length(start_don)),y1=rep(1.35,length(start_don)),x1=start_don,col='red',lwd=3)
+                        segments(x0=end_acc,y0=rep(1.25,length(end_acc)),y1=rep(1.35,length(end_acc)),x1=end_acc,col='green',lwd=3)
+                        segments(x0=start_don,y0=rep(1.3,length(start_don)),y1=rep(1.0,length(start_don)),x1=start_don+(end_don-start_don)/2,col='red',
+                            lty=lty,lwd=3)
+                        segments(x0=start_don+(end_don-start_don)/2,y0=rep(1.0,length(start_don)),y1=rep(1.3,length(start_don)),x1=end_don,col='red',
+                            lty=lty,lwd=3)
+                        segments(x0=start_acc,y0=rep(1.3,length(start_acc)),y1=rep(1.0,length(start_acc)),x1=start_acc+(end_acc-start_acc)/2,col='green',
+                            lty=lty,lwd=3)
+                        segments(x0=start_acc+(end_acc-start_acc)/2,y0=rep(1.0,length(start_acc)),y1=rep(1.3,length(start_acc)),x1=end_acc,col='green',
+                            lty=lty,lwd=3)
+                        segments(x0=start_saut,y0=rep(1.4,length(start_saut)),y1=rep(1.6,length(start_saut)),x1=start_saut+(end_saut-start_saut)/2,col='blue',
+                            lty=lty,lwd=3)
+                        segments(x0=start_saut+(end_saut-start_saut)/2,y0=rep(1.6,length(start_saut)),y1=rep(1.4,length(start_saut)),x1=end_saut,col='blue',
+                            lty=lty,lwd=3)
+                        text(y=rep(1.1,length(c(start_physio,max(end_physio)))),cex=2,x=c(min(start_physio),
+                            start_physio[-1]+( end_physio[-length(end_physio)]- start_physio[-1])/2,max(end_physio)),
+                            labels=c(lab_physio))
+                        text(y=2.5,x=min_x+(max_x-min_x)*0.05,labels="Physiological expression:",bg='white',cex=2.5,font=4)
+                        text(y=1.9,x=min_x+(max_x-min_x)*0.05,labels="Alternative splicing:",bg='white',cex=2.5,font=4)
+                        text(y=2.42,x=min_x+(max_x-min_x)*0.05,labels=paste("Global expression =",round(mean(mean_read_physio),0)),bg='white',cex=2)
+                        text(y=h_physio+1.75,x=start_physio + (end_physio - start_physio)/2 -((max_x-min_x)/800),
+                            labels=round(mean_read_physio,0),bg='white',cex=1)
+                        text(y=c(1.7,1.8),x=start_saut+(end_saut-start_saut)/2,labels=paste(Annot_saut,":",round(P_saut,2),"%",Signi_saut),
+                            bg='white',cex=1.5,col='blue',font = font_Saut)
+                        text(y=c(0.95,0.9),x=start_don+(end_don-start_don)/2,labels=paste(Annot_don,":",round(P_don,2),"%",Signi_don),
+                            bg='white',cex=1.5,col='red',font = font_Don)
+                        text(y=c(0.85,0.8),x=start_acc+(end_acc-start_acc)/2,labels=paste(Annot_acc,":",round(P_acc,2),"%",Signi_acc),
+                            bg='white',cex=1.5,col='green',font = font_Acc)
+
+                    }else if (data_gene$Strand_transcript[1]=="reverse"){
+
+                        data_gene=data_gene[order(data_gene$start),]
+                        end_physio=data_gene$end[data_gene$constitutive=="Physio"]
+                        start_physio=data_gene$start[data_gene$constitutive=="Physio"]
+                        lab_physio=c((length(end_physio)+1):1)
+                        mean_read_physio=data_gene[data_gene$constitutive=="Physio",SampleInput[j]]
+                        h_physio=log(mean_read_physio)/20
+
+                        start_don=as.numeric(na.omit(data_gene$end[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                        end_don=as.numeric(na.omit(data_gene$start[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                        P_don=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                        Annot_don=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr]))
+                        Signi_don = getSigniDon(data_gene[data_gene$event_type=="5AS" & data_gene$mean_percent>=thr,])
+                        font_Don = getFont(Signi_don)
+
+                        start_acc=as.numeric(na.omit(data_gene$end[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                        end_acc=as.numeric(na.omit(data_gene$start[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                        P_acc=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                        Annot_acc=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr]))
+                        Signi_acc = getSigniAcc(data_gene[data_gene$event_type=="3AS" & data_gene$mean_percent>=thr,])
+                        font_Acc = getFont(Signi_acc)
+
+                        start_saut=as.numeric(na.omit(data_gene$end[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                        end_saut=as.numeric(na.omit(data_gene$start[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                        P_saut=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                        Annot_saut=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr]))
+                        Signi_saut = getSigniSaut(data_gene[data_gene$event_type=="SkipEx" & data_gene$mean_percent>=thr,])
+                        font_Saut = getFont(Signi_saut)
+
+                        min_x=min(c(end_physio,end_acc,end_saut,start_don,start_physio,start_saut))
+                        max_x=max(c(start_don,start_physio,start_saut,end_physio,end_acc,end_saut))
+
+                        plot(x=0,xlim=c(min_x,max_x),ylim=c(0.8,2.5),cex.main=4,cex.lab=3,xlab=data_gene$Strand_transcript[1],
+                            main=paste(data_gene$Gene[1],paste("(",unique(data_gene$NM),")",sep=""),
+                            ">",thr,"%",run), yaxt="n", ylab="")
+                        segments(x0=min(start_physio),y0=1.3,y1=1.3,x1=max(end_physio),col='black',lwd=6)
+                        rect(xleft=start_physio[-1],xright=end_physio[-length(end_physio)],ytop=rep(1.40,length(start_physio[-1])),
+                            ybottom=rep(1.20,length(end_physio)),col='blue')
+                        abline(h=seq(from=2.1,to=2.3,by=0.2),col='gray85',lty=2,lwd=1)
+                        abline(h=seq(from=2,to=2.4,by=0.2),col='gray70',lty=2,lwd=1)
+                        rect(xleft=end_physio + (start_physio-end_physio)/2+((max_x-min_x)/800),
+                            xright=end_physio + (start_physio-end_physio)/2-((max_x-min_x)/800),
+                            ytop=h_physio+1.7,ybottom=2,col='blue')
+                        rect(xleft=min(c(start_don,start_physio,start_saut)),xright=start_physio[1],ytop=1.45,ybottom=1.15,col='blue')
+                        rect(xleft=end_physio[length(end_physio)],xright=max(c(end_physio,end_acc,end_saut)),ytop=1.45,ybottom=1.15,col='blue')
+                        segments(x0=start_don,y0=rep(1.25,length(start_don)),y1=rep(1.35,length(start_don)),x1=start_don,col='red',lwd=3)
+                        segments(x0=end_acc,y0=rep(1.25,length(end_acc)),y1=rep(1.35,length(end_acc)),x1=end_acc,col='green',lwd=3)
+                        segments(x0=start_saut,y0=rep(1.4,length(start_saut)),y1=rep(1.6,length(start_saut)),x1=start_saut+(end_saut-start_saut)/2,col='blue',
+                            lty=lty,lwd=3)
+                        segments(x0=start_saut+(end_saut-start_saut)/2,y0=rep(1.6,length(start_saut)),y1=rep(1.4,length(start_saut)),x1=end_saut,col='blue',
+                            lty=lty,lwd=3)
+                        segments(x0=start_don,y0=rep(1.3,length(start_don)),y1=rep(1,length(start_don)),x1=start_don+(end_don-start_don)/2,col='red',
+                            lty=lty,lwd=3)
+                        segments(x0=start_don+(end_don-start_don)/2,y0=rep(1,length(start_don)),y1=rep(1.3,length(start_don)),x1=end_don,col='red',
+                            lty=lty,lwd=3)
+                        segments(x0=start_acc,y0=rep(1.3,length(start_acc)),y1=rep(1,length(start_acc)),x1=start_acc+(end_acc-start_acc)/2,col='green',
+                            lty=lty,lwd=3)
+                        segments(x0=start_acc+(end_acc-start_acc)/2,y0=rep(1,length(start_acc)),y1=rep(1.3,length(start_acc)),x1=end_acc,col='green',
+                            lty=lty,lwd=3)
+                        text(y=rep(1.1,length(c(end_physio,max(start_physio)))),cex=2,x=c(min(start_physio),
+                            end_physio[-length(end_physio)]+( start_physio[-1]- end_physio[-length(end_physio)])/2,max(end_physio)),
+                            labels=c(lab_physio))
+                        text(y=2.5,x=min_x+(max_x-min_x)*0.05,labels="Physiological expression:",bg='white',cex=2.5,font=4)
+                        text(y=1.9,x=min_x+(max_x-min_x)*0.05,labels="Alternative splicing:",bg='white',cex=2.5,font=4)
+                        text(y=2.42,x=min_x+(max_x-min_x)*0.05,labels=paste("Global expression =",round(mean(mean_read_physio),0)),bg='white',cex=2)
+                        text(y=h_physio+1.75,x=end_physio + (start_physio-end_physio)/2+((max_x-min_x)/800),
+                            labels=round(mean_read_physio,0),bg='white',cex=1)
+                        text(y=c(1.7,1.8),x=end_saut+(start_saut-end_saut)/2,labels=paste(Annot_saut,":",round(P_saut,2),"%",Signi_saut),
+                            bg='white',cex=1.5,col='blue',font = font_Saut)
+                        text(y=c(0.95,0.9),x=end_don+(start_don-end_don)/2,labels=paste(Annot_don,":",round(P_don,2),"%",Signi_don),
+                            bg='white',cex=1.5,col='red',font = font_Don)
+                        text(y=c(0.85,0.8),x=end_acc+(start_acc-end_acc)/2,labels=paste(Annot_acc,":",round(P_acc,2),"%",Signi_acc),
+                            bg='white',cex=1.5,col='green',font = font_Acc)
+                    }
+                }
+            }
+        }
+        message(paste("    Not enough read on physiological junctions for",if(GeneMis!=0){GeneMis}else{"NONE"},"gene(s)"))
+        dev.off()
+    }
+
+    #Create plot for significant junction
+    for(j in 1:length(EchName)){
+        message(paste("   Graphics for significant junctions:",EchName[j]))
+
+        #CairoPDF(file=paste(chem_dessin,run,"_",EchName[j],".pdf",sep=""),width =60, height = 12)
+        CairoPDF(file=paste(chem_dessin,EchName[j],"/", EchName[j],".significant_junctions.pdf",sep=""),width =60, height = 12)
+
+        data_junction$mean_percent = data_junction[,SampleOutput[j]]
+        data_junction$mean_percent[data_junction$mean_percent=='Inf']=100
+        GeneMis = 0
+        for(i in id_gene){
+            data_gene = data_junction[data_junction$ID_gene==i & data_junction$event_type!="NoData",]
+            if(max(data_gene[data_gene$constitutive=="Physio",input[j]])<100){
+                GeneMis = GeneMis+1
+            }else{
+                if (any(grepl(EchName[j], data_gene$Significative))){
+                    if(data_gene$Strand_transcript[1]=="forward"){
+                        start_physio=data_gene$start[data_gene$constitutive=="Physio"]
+                        lab_physio=c(1:(length(start_physio)+1))
+                        end_physio=data_gene$end[data_gene$constitutive=="Physio"]
+                        mean_read_physio=data_gene[data_gene$constitutive=="Physio",SampleInput[j]]
+                        h_physio=log(mean_read_physio)/20
+
+                        start_don=as.numeric(na.omit(data_gene$start[data_gene$event_type=="5AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        end_don=as.numeric(na.omit(data_gene$end[data_gene$event_type=="5AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        P_don=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="5AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        Annot_don=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="5AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        Signi_don = getSigniDon(data_gene[data_gene$event_type=="5AS"  & grepl(EchName[j], data_gene$Significative),])
+                        font_Don = getFont(Signi_don)
+
+                        start_acc=as.numeric(na.omit(data_gene$start[data_gene$event_type=="3AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        end_acc=as.numeric(na.omit(data_gene$end[data_gene$event_type=="3AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        P_acc=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="3AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        Annot_acc=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="3AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        Signi_acc = getSigniAcc(data_gene[data_gene$event_type=="3AS"  & grepl(EchName[j], data_gene$Significative),])
+                        font_Acc = getFont(Signi_acc)
+
+                        start_saut=as.numeric(na.omit(data_gene$start[data_gene$event_type=="SkipEx"  & grepl(EchName[j], data_gene$Significative)]))
+                        P_saut=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="SkipEx"  & grepl(EchName[j], data_gene$Significative)]))
+                        Annot_saut=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="SkipEx"  & grepl(EchName[j], data_gene$Significative)]))
+                        end_saut=as.numeric(na.omit(data_gene$end[data_gene$event_type=="SkipEx"  & grepl(EchName[j], data_gene$Significative)]))
+                        Signi_saut = getSigniSaut(data_gene[data_gene$event_type=="SkipEx"  & grepl(EchName[j], data_gene$Significative),])
+                        font_Saut = getFont(Signi_saut)
+
+                        min_x=min(c(start_don,start_physio,start_saut))
+                        max_x=max(c(end_don,end_physio,end_saut,end_acc))
+
+                        plot(x=0,xlim=c(min_x,max_x),ylim=c(0.8,2.5),xlab=data_gene$Strand_transcript[1],
+                            main=paste(data_gene$Gene[1],paste("(",unique(data_gene$NM),")",sep=""),
+                            run),cex.main=4,cex.lab=3, yaxt="n", ylab="")
+                        segments(x0=min(start_physio),y0=1.3,y1=1.3,x1=max(end_physio),col='black',lwd=6)
+                        rect(xleft=start_physio[-1],xright=end_physio[-length(end_physio)],ytop=rep(1.40,length(start_physio[-1])),
+                            ybottom=rep(1.20,length(end_physio)),col='blue')
+                        rect(xleft=min(c(start_don,start_physio,start_saut)),xright=start_physio[1],ytop=1.45,ybottom=1.15,col='blue')
+                        abline(h=seq(from=2.1,to=2.3,by=0.2),col='gray85',lty=2,lwd=1)
+                        abline(h=seq(from=2,to=2.5,by=0.2),col='gray70',lty=2,lwd=1)
+                        rect(xleft=start_physio + (end_physio - start_physio)/2 -((max_x-min_x)/800),
+                            xright=start_physio + (end_physio - start_physio)/2+((max_x-min_x)/800),
+                            ytop=h_physio+1.7,ybottom=2,col='blue')
+                        rect(xleft=end_physio[length(end_physio)],xright=max(c(end_physio,end_acc,end_saut)),ytop=1.45,ybottom=1.15,col='blue')
+                        segments(x0=start_don,y0=rep(1.25,length(start_don)),y1=rep(1.35,length(start_don)),x1=start_don,col='red',lwd=3)
+                        segments(x0=end_acc,y0=rep(1.25,length(end_acc)),y1=rep(1.35,length(end_acc)),x1=end_acc,col='green',lwd=3)
+                        segments(x0=start_don,y0=rep(1.3,length(start_don)),y1=rep(1.0,length(start_don)),x1=start_don+(end_don-start_don)/2,col='red',
+                            lty=lty,lwd=3)
+                        segments(x0=start_don+(end_don-start_don)/2,y0=rep(1.0,length(start_don)),y1=rep(1.3,length(start_don)),x1=end_don,col='red',
+                            lty=lty,lwd=3)
+                        segments(x0=start_acc,y0=rep(1.3,length(start_acc)),y1=rep(1.0,length(start_acc)),x1=start_acc+(end_acc-start_acc)/2,col='green',
+                            lty=lty,lwd=3)
+                        segments(x0=start_acc+(end_acc-start_acc)/2,y0=rep(1.0,length(start_acc)),y1=rep(1.3,length(start_acc)),x1=end_acc,col='green',
+                            lty=lty,lwd=3)
+                        segments(x0=start_saut,y0=rep(1.4,length(start_saut)),y1=rep(1.6,length(start_saut)),x1=start_saut+(end_saut-start_saut)/2,col='blue',
+                            lty=lty,lwd=3)
+                        segments(x0=start_saut+(end_saut-start_saut)/2,y0=rep(1.6,length(start_saut)),y1=rep(1.4,length(start_saut)),x1=end_saut,col='blue',
+                            lty=lty,lwd=3)
+                        text(y=rep(1.1,length(c(start_physio,max(end_physio)))),cex=2,x=c(min(start_physio),
+                            start_physio[-1]+( end_physio[-length(end_physio)]- start_physio[-1])/2,max(end_physio)),
+                            labels=c(lab_physio))
+                        text(y=2.5,x=min_x+(max_x-min_x)*0.05,labels="Physiological expression:",bg='white',cex=2.5,font=4)
+                        text(y=1.9,x=min_x+(max_x-min_x)*0.05,labels="Alternative splicing:",bg='white',cex=2.5,font=4)
+                        text(y=2.42,x=min_x+(max_x-min_x)*0.05,labels=paste("Global expression =",round(mean(mean_read_physio),0)),bg='white',cex=2)
+                        text(y=h_physio+1.75,x=start_physio + (end_physio - start_physio)/2 -((max_x-min_x)/800),
+                            labels=round(mean_read_physio,0),bg='white',cex=1)
+                        text(y=c(1.7,1.8),x=start_saut+(end_saut-start_saut)/2,labels=paste(Annot_saut,":",round(P_saut,2),"%",Signi_saut),
+                            bg='white',cex=1.5,col='blue',font = font_Saut)
+                        text(y=c(0.95,0.9),x=start_don+(end_don-start_don)/2,labels=paste(Annot_don,":",round(P_don,2),"%",Signi_don),
+                            bg='white',cex=1.5,col='red',font = font_Don)
+                        text(y=c(0.85,0.8),x=start_acc+(end_acc-start_acc)/2,labels=paste(Annot_acc,":",round(P_acc,2),"%",Signi_acc),
+                            bg='white',cex=1.5,col='green',font = font_Acc)
+
+
+                        # # Filtrer uniquement les jonctions significatives
+                        # significant_don <- na.omit(data_gene[data_gene$event_type == "5AS" & data_gene$mean_percent >= thr & grepl(EchName[j], data_gene$Significative)])
+                        # significant_acc <- na.omit(data_gene[data_gene$event_type == "3AS" & data_gene$mean_percent >= thr &  grepl(EchName[j], data_gene$Significative)])
+                        # significant_saut <- na.omit(data_gene[data_gene$event_type == "SkipEx" & data_gene$mean_percent >= thr & grepl(EchName[j], data_gene$Significative)])
+
+                    }else if (data_gene$Strand_transcript[1]=="reverse"){
+
+                        data_gene=data_gene[order(data_gene$start),]
+                        end_physio=data_gene$end[data_gene$constitutive=="Physio"]
+                        start_physio=data_gene$start[data_gene$constitutive=="Physio"]
+                        lab_physio=c((length(end_physio)+1):1)
+                        mean_read_physio=data_gene[data_gene$constitutive=="Physio",SampleInput[j]]
+                        h_physio=log(mean_read_physio)/20
+
+                        start_don=as.numeric(na.omit(data_gene$end[data_gene$event_type=="5AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        end_don=as.numeric(na.omit(data_gene$start[data_gene$event_type=="5AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        P_don=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="5AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        Annot_don=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="5AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        Signi_don = getSigniDon(data_gene[data_gene$event_type=="5AS"  & grepl(EchName[j], data_gene$Significative),])
+                        font_Don = getFont(Signi_don)
+
+                        start_acc=as.numeric(na.omit(data_gene$end[data_gene$event_type=="3AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        end_acc=as.numeric(na.omit(data_gene$start[data_gene$event_type=="3AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        P_acc=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="3AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        Annot_acc=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="3AS"  & grepl(EchName[j], data_gene$Significative)]))
+                        Signi_acc = getSigniAcc(data_gene[data_gene$event_type=="3AS"  & grepl(EchName[j], data_gene$Significative),])
+                        font_Acc = getFont(Signi_acc)
+
+                        start_saut=as.numeric(na.omit(data_gene$end[data_gene$event_type=="SkipEx"  & grepl(EchName[j], data_gene$Significative)]))
+                        end_saut=as.numeric(na.omit(data_gene$start[data_gene$event_type=="SkipEx"  & grepl(EchName[j], data_gene$Significative)]))
+                        P_saut=as.numeric(na.omit(data_gene$mean_percent[data_gene$event_type=="SkipEx"  & grepl(EchName[j], data_gene$Significative)]))
+                        Annot_saut=as.character(na.omit(data_gene$AnnotJunc[data_gene$event_type=="SkipEx"  & grepl(EchName[j], data_gene$Significative)]))
+                        Signi_saut = getSigniSaut(data_gene[data_gene$event_type=="SkipEx"  & grepl(EchName[j], data_gene$Significative),])
+                        font_Saut = getFont(Signi_saut)
+                        
+                        min_x=min(c(end_physio,end_acc,end_saut,start_don,start_physio,start_saut))
+                        max_x=max(c(start_don,start_physio,start_saut,end_physio,end_acc,end_saut))
+
+                        plot(x=0,xlim=c(min_x,max_x),ylim=c(0.8,2.5),cex.main=4,cex.lab=3,xlab=data_gene$Strand_transcript[1],
+                            main=paste(data_gene$Gene[1],paste("(",unique(data_gene$NM),")",sep=""),
+                            run), yaxt="n", ylab="")
+                        segments(x0=min(start_physio),y0=1.3,y1=1.3,x1=max(end_physio),col='black',lwd=6)
+                        rect(xleft=start_physio[-1],xright=end_physio[-length(end_physio)],ytop=rep(1.40,length(start_physio[-1])),
+                            ybottom=rep(1.20,length(end_physio)),col='blue')
+                        abline(h=seq(from=2.1,to=2.3,by=0.2),col='gray85',lty=2,lwd=1)
+                        abline(h=seq(from=2,to=2.4,by=0.2),col='gray70',lty=2,lwd=1)
+                        rect(xleft=end_physio + (start_physio-end_physio)/2+((max_x-min_x)/800),
+                            xright=end_physio + (start_physio-end_physio)/2-((max_x-min_x)/800),
+                            ytop=h_physio+1.7,ybottom=2,col='blue')
+                        rect(xleft=min(c(start_don,start_physio,start_saut)),xright=start_physio[1],ytop=1.45,ybottom=1.15,col='blue')
+                        rect(xleft=end_physio[length(end_physio)],xright=max(c(end_physio,end_acc,end_saut)),ytop=1.45,ybottom=1.15,col='blue')
+                        segments(x0=start_don,y0=rep(1.25,length(start_don)),y1=rep(1.35,length(start_don)),x1=start_don,col='red',lwd=3)
+                        segments(x0=end_acc,y0=rep(1.25,length(end_acc)),y1=rep(1.35,length(end_acc)),x1=end_acc,col='green',lwd=3)
+                        segments(x0=start_saut,y0=rep(1.4,length(start_saut)),y1=rep(1.6,length(start_saut)),x1=start_saut+(end_saut-start_saut)/2,col='blue',
+                            lty=lty,lwd=3)
+                        segments(x0=start_saut+(end_saut-start_saut)/2,y0=rep(1.6,length(start_saut)),y1=rep(1.4,length(start_saut)),x1=end_saut,col='blue',
+                            lty=lty,lwd=3)
+                        segments(x0=start_don,y0=rep(1.3,length(start_don)),y1=rep(1,length(start_don)),x1=start_don+(end_don-start_don)/2,col='red',
+                            lty=lty,lwd=3)
+                        segments(x0=start_don+(end_don-start_don)/2,y0=rep(1,length(start_don)),y1=rep(1.3,length(start_don)),x1=end_don,col='red',
+                            lty=lty,lwd=3)
+                        segments(x0=start_acc,y0=rep(1.3,length(start_acc)),y1=rep(1,length(start_acc)),x1=start_acc+(end_acc-start_acc)/2,col='green',
+                            lty=lty,lwd=3)
+                        segments(x0=start_acc+(end_acc-start_acc)/2,y0=rep(1,length(start_acc)),y1=rep(1.3,length(start_acc)),x1=end_acc,col='green',
+                            lty=lty,lwd=3)
+                        text(y=rep(1.1,length(c(end_physio,max(start_physio)))),cex=2,x=c(min(start_physio),
+                            end_physio[-length(end_physio)]+( start_physio[-1]- end_physio[-length(end_physio)])/2,max(end_physio)),
+                            labels=c(lab_physio))
+                        text(y=2.5,x=min_x+(max_x-min_x)*0.05,labels="Physiological expression:",bg='white',cex=2.5,font=4)
+                        text(y=1.9,x=min_x+(max_x-min_x)*0.05,labels="Alternative splicing:",bg='white',cex=2.5,font=4)
+                        text(y=2.42,x=min_x+(max_x-min_x)*0.05,labels=paste("Global expression =",round(mean(mean_read_physio),0)),bg='white',cex=2)
+                        text(y=h_physio+1.75,x=end_physio + (start_physio-end_physio)/2+((max_x-min_x)/800),
+                            labels=round(mean_read_physio,0),bg='white',cex=1)
+                        text(y=c(1.7,1.8),x=end_saut+(start_saut-end_saut)/2,labels=paste(Annot_saut,":",round(P_saut,2),"%",Signi_saut),
+                            bg='white',cex=1.5,col='blue',font = font_Saut)
+                        text(y=c(0.95,0.9),x=end_don+(start_don-end_don)/2,labels=paste(Annot_don,":",round(P_don,2),"%",Signi_don),
+                            bg='white',cex=1.5,col='red',font = font_Don)
+                        text(y=c(0.85,0.8),x=end_acc+(start_acc-end_acc)/2,labels=paste(Annot_acc,":",round(P_acc,2),"%",Signi_acc),
+                            bg='white',cex=1.5,col='green',font = font_Acc)
+                    }   
+                }
+            }
+        }
+        message(paste("    Not enough read on physiological junctions for",if(GeneMis!=0){GeneMis}else{"NONE"},"gene(s)"))
+        dev.off()
+    }
+
+    #Create plot for unique junctions
+    for(j in 1:length(EchName)){
+        message(paste("   Graphics for unique junctions:",EchName[j]))
+
+        #CairoPDF(file=paste(chem_dessin,run,"_",EchName[j],".pdf",sep=""),width =60, height = 12)
+        CairoPDF(file=paste(chem_dessin,EchName[j],"/", EchName[j],".unique_junctions.pdf",sep=""),width =60, height = 12)
+
+        data_junction$mean_percent = data_junction[,SampleOutput[j]]
+        data_junction$mean_percent[data_junction$mean_percent=='Inf']=100
+        GeneMis = 0
+
+        P_EchName <- paste("P",EchName[j],sep="_") 
+        unique_filter <- unique_genes[unique_genes[[P_EchName]] != 0 & !is.na(unique_genes[[P_EchName]]) & unique_genes[[EchName[j]]] >= minUniqueReads,]
+        for(i in id_gene){
+            data_gene = data_junction[data_junction$ID_gene==i & data_junction$event_type!="NoData",]
+            data_gene_unique_filter <- unique_filter[unique_filter$ID_gene==i & unique_filter$event_type!="NoData",]
+            if(max(data_gene[data_gene$constitutive=="Physio",input[j]])<100){
+                GeneMis = GeneMis+1
+            }else{
+                if (all(dim(data_gene_unique_filter) != 0)){
+                    if(data_gene$Strand_transcript[1]=="forward"){
+                        start_physio=data_gene$start[data_gene$constitutive=="Physio"]
+                        lab_physio=c(1:(length(start_physio)+1))
+                        end_physio=data_gene$end[data_gene$constitutive=="Physio"]
+                        mean_read_physio=data_gene[data_gene$constitutive=="Physio",SampleInput[j]]
+                        h_physio=log(mean_read_physio)/20
+
+                        start_don=as.numeric(na.omit(data_gene_unique_filter$start[data_gene_unique_filter$event_type=="5AS"]))
+                        end_don=as.numeric(na.omit(data_gene_unique_filter$end[data_gene_unique_filter$event_type=="5AS"]))
+                        P_don=as.numeric(na.omit(data_gene_unique_filter$mean_percent[data_gene_unique_filter$event_type=="5AS"]))
+                        Annot_don=as.character(na.omit(data_gene_unique_filter$AnnotJunc[data_gene_unique_filter$event_type=="5AS"]))
+                        Signi_don = getSigniDon(data_gene_unique_filter[data_gene_unique_filter$event_type=="5AS",])
+                        font_Don = getFont(Signi_don)
+
+                        start_acc=as.numeric(na.omit(data_gene_unique_filter$start[data_gene_unique_filter$event_type=="3AS"]))
+                        end_acc=as.numeric(na.omit(data_gene_unique_filter$end[data_gene_unique_filter$event_type=="3AS"]))
+                        P_acc=as.numeric(na.omit(data_gene_unique_filter$mean_percent[data_gene_unique_filter$event_type=="3AS"]))
+                        Annot_acc=as.character(na.omit(data_gene_unique_filter$AnnotJunc[data_gene_unique_filter$event_type=="3AS"]))
+                        Signi_acc = getSigniAcc(data_gene_unique_filter[data_gene_unique_filter$event_type=="3AS",])
+                        font_Acc = getFont(Signi_acc)
+
+                        start_saut=as.numeric(na.omit(data_gene_unique_filter$start[data_gene_unique_filter$event_type=="SkipEx"]))
+                        P_saut=as.numeric(na.omit(data_gene_unique_filter$mean_percent[data_gene_unique_filter$event_type=="SkipEx"]))
+                        Annot_saut=as.character(na.omit(data_gene_unique_filter$AnnotJunc[data_gene_unique_filter$event_type=="SkipEx"]))
+                        end_saut=as.numeric(na.omit(data_gene_unique_filter$end[data_gene_unique_filter$event_type=="SkipEx"]))
+                        Signi_saut = getSigniSaut(data_gene_unique_filter[data_gene_unique_filter$event_type=="SkipEx",])
+                        font_Saut = getFont(Signi_saut)
+
+                        min_x=min(c(start_don,start_physio,start_saut))
+                        max_x=max(c(end_don,end_physio,end_saut,end_acc))
+
+                        plot(x=0,xlim=c(min_x,max_x),ylim=c(0.8,2.5),xlab=data_gene$Strand_transcript[1],
+                            main=paste(data_gene$Gene[1],paste("(",unique(data_gene$NM),")",sep=""),
+                            run),cex.main=4,cex.lab=3, yaxt="n", ylab="")
+                        segments(x0=min(start_physio),y0=1.3,y1=1.3,x1=max(end_physio),col='black',lwd=6)
+                        rect(xleft=start_physio[-1],xright=end_physio[-length(end_physio)],ytop=rep(1.40,length(start_physio[-1])),
+                            ybottom=rep(1.20,length(end_physio)),col='blue')
+                        rect(xleft=min(c(start_don,start_physio,start_saut)),xright=start_physio[1],ytop=1.45,ybottom=1.15,col='blue')
+                        abline(h=seq(from=2.1,to=2.3,by=0.2),col='gray85',lty=2,lwd=1)
+                        abline(h=seq(from=2,to=2.5,by=0.2),col='gray70',lty=2,lwd=1)
+                        rect(xleft=start_physio + (end_physio - start_physio)/2 -((max_x-min_x)/800),
+                            xright=start_physio + (end_physio - start_physio)/2+((max_x-min_x)/800),
+                            ytop=h_physio+1.7,ybottom=2,col='blue')
+                        rect(xleft=end_physio[length(end_physio)],xright=max(c(end_physio,end_acc,end_saut)),ytop=1.45,ybottom=1.15,col='blue')
+                        segments(x0=start_don,y0=rep(1.25,length(start_don)),y1=rep(1.35,length(start_don)),x1=start_don,col='red',lwd=3)
+                        segments(x0=end_acc,y0=rep(1.25,length(end_acc)),y1=rep(1.35,length(end_acc)),x1=end_acc,col='green',lwd=3)
+                        segments(x0=start_don,y0=rep(1.3,length(start_don)),y1=rep(1.0,length(start_don)),x1=start_don+(end_don-start_don)/2,col='red',
+                            lty=lty,lwd=3)
+                        segments(x0=start_don+(end_don-start_don)/2,y0=rep(1.0,length(start_don)),y1=rep(1.3,length(start_don)),x1=end_don,col='red',
+                            lty=lty,lwd=3)
+                        segments(x0=start_acc,y0=rep(1.3,length(start_acc)),y1=rep(1.0,length(start_acc)),x1=start_acc+(end_acc-start_acc)/2,col='green',
+                            lty=lty,lwd=3)
+                        segments(x0=start_acc+(end_acc-start_acc)/2,y0=rep(1.0,length(start_acc)),y1=rep(1.3,length(start_acc)),x1=end_acc,col='green',
+                            lty=lty,lwd=3)
+                        segments(x0=start_saut,y0=rep(1.4,length(start_saut)),y1=rep(1.6,length(start_saut)),x1=start_saut+(end_saut-start_saut)/2,col='blue',
+                            lty=lty,lwd=3)
+                        segments(x0=start_saut+(end_saut-start_saut)/2,y0=rep(1.6,length(start_saut)),y1=rep(1.4,length(start_saut)),x1=end_saut,col='blue',
+                            lty=lty,lwd=3)
+                        text(y=rep(1.1,length(c(start_physio,max(end_physio)))),cex=2,x=c(min(start_physio),
+                            start_physio[-1]+( end_physio[-length(end_physio)]- start_physio[-1])/2,max(end_physio)),
+                            labels=c(lab_physio))
+                        text(y=2.5,x=min_x+(max_x-min_x)*0.05,labels="Physiological expression:",bg='white',cex=2.5,font=4)
+                        text(y=1.9,x=min_x+(max_x-min_x)*0.05,labels="Alternative splicing:",bg='white',cex=2.5,font=4)
+                        text(y=2.42,x=min_x+(max_x-min_x)*0.05,labels=paste("Global expression =",round(mean(mean_read_physio),0)),bg='white',cex=2)
+                        text(y=h_physio+1.75,x=start_physio + (end_physio - start_physio)/2 -((max_x-min_x)/800),
+                            labels=round(mean_read_physio,0),bg='white',cex=1)
+                        text(y=c(1.7,1.8),x=start_saut+(end_saut-start_saut)/2,labels=paste(Annot_saut,":",round(P_saut,2),"%",Signi_saut),
+                            bg='white',cex=1.5,col='blue',font = font_Saut)
+                        text(y=c(0.95,0.9),x=start_don+(end_don-start_don)/2,labels=paste(Annot_don,":",round(P_don,2),"%",Signi_don),
+                            bg='white',cex=1.5,col='red',font = font_Don)
+                        text(y=c(0.85,0.8),x=start_acc+(end_acc-start_acc)/2,labels=paste(Annot_acc,":",round(P_acc,2),"%",Signi_acc),
+                            bg='white',cex=1.5,col='green',font = font_Acc)
+
+
+                        # # Filtrer uniquement les jonctions significatives
+                        # significant_don <- na.omit(data_gene[data_gene$event_type == "5AS" & data_gene$mean_percent >= thr & grepl(EchName[j], data_gene$Significative)])
+                        # significant_acc <- na.omit(data_gene[data_gene$event_type == "3AS" & data_gene$mean_percent >= thr &  grepl(EchName[j], data_gene$Significative)])
+                        # significant_saut <- na.omit(data_gene[data_gene$event_type == "SkipEx" & data_gene$mean_percent >= thr & grepl(EchName[j], data_gene$Significative)])
+
+                    }else if (data_gene$Strand_transcript[1]=="reverse"){
+
+                        data_gene=data_gene[order(data_gene$start),]
+                        end_physio=data_gene$end[data_gene$constitutive=="Physio"]
+                        start_physio=data_gene$start[data_gene$constitutive=="Physio"]
+                        lab_physio=c((length(end_physio)+1):1)
+                        mean_read_physio=data_gene[data_gene$constitutive=="Physio",SampleInput[j]]
+                        h_physio=log(mean_read_physio)/20
+
+                        start_don=as.numeric(na.omit(data_gene_unique_filter$end[data_gene_unique_filter$event_type=="5AS"]))
+                        end_don=as.numeric(na.omit(data_gene_unique_filter$start[data_gene_unique_filter$event_type=="5AS"]))
+                        P_don=as.numeric(na.omit(data_gene_unique_filter$mean_percent[data_gene_unique_filter$event_type=="5AS"]))
+                        Annot_don=as.character(na.omit(data_gene_unique_filter$AnnotJunc[data_gene_unique_filter$event_type=="5AS"]))
+                        Signi_don = getSigniDon(data_gene_unique_filter[data_gene_unique_filter$event_type=="5AS",])
+                        font_Don = getFont(Signi_don)
+
+                        start_acc=as.numeric(na.omit(data_gene_unique_filter$end[data_gene_unique_filter$event_type=="3AS"]))
+                        end_acc=as.numeric(na.omit(data_gene_unique_filter$start[data_gene_unique_filter$event_type=="3AS"]))
+                        P_acc=as.numeric(na.omit(data_gene_unique_filter$mean_percent[data_gene_unique_filter$event_type=="3AS"]))
+                        Annot_acc=as.character(na.omit(data_gene_unique_filter$AnnotJunc[data_gene_unique_filter$event_type=="3AS"]))
+                        Signi_acc = getSigniAcc(data_gene_unique_filter[data_gene_unique_filter$event_type=="3AS",])
+                        font_Acc = getFont(Signi_acc)
+
+                        start_saut=as.numeric(na.omit(data_gene_unique_filter$end[data_gene_unique_filter$event_type=="SkipEx"]))
+                        end_saut=as.numeric(na.omit(data_gene_unique_filter$start[data_gene_unique_filter$event_type=="SkipEx"]))
+                        P_saut=as.numeric(na.omit(data_gene_unique_filter$mean_percent[data_gene_unique_filter$event_type=="SkipEx"]))
+                        Annot_saut=as.character(na.omit(data_gene_unique_filter$AnnotJunc[data_gene_unique_filter$event_type=="SkipEx"]))
+                        Signi_saut = getSigniSaut(data_gene_unique_filter[data_gene_unique_filter$event_type=="SkipEx",])
+                        font_Saut = getFont(Signi_saut)
+                        
+                        min_x=min(c(end_physio,end_acc,end_saut,start_don,start_physio,start_saut))
+                        max_x=max(c(start_don,start_physio,start_saut,end_physio,end_acc,end_saut))
+
+                        plot(x=0,xlim=c(min_x,max_x),ylim=c(0.8,2.5),cex.main=4,cex.lab=3,xlab=data_gene$Strand_transcript[1],
+                            main=paste(data_gene$Gene[1],paste("(",unique(data_gene$NM),")",sep=""),
+                            run), yaxt="n", ylab="")
+                        segments(x0=min(start_physio),y0=1.3,y1=1.3,x1=max(end_physio),col='black',lwd=6)
+                        rect(xleft=start_physio[-1],xright=end_physio[-length(end_physio)],ytop=rep(1.40,length(start_physio[-1])),
+                            ybottom=rep(1.20,length(end_physio)),col='blue')
+                        abline(h=seq(from=2.1,to=2.3,by=0.2),col='gray85',lty=2,lwd=1)
+                        abline(h=seq(from=2,to=2.4,by=0.2),col='gray70',lty=2,lwd=1)
+                        rect(xleft=end_physio + (start_physio-end_physio)/2+((max_x-min_x)/800),
+                            xright=end_physio + (start_physio-end_physio)/2-((max_x-min_x)/800),
+                            ytop=h_physio+1.7,ybottom=2,col='blue')
+                        rect(xleft=min(c(start_don,start_physio,start_saut)),xright=start_physio[1],ytop=1.45,ybottom=1.15,col='blue')
+                        rect(xleft=end_physio[length(end_physio)],xright=max(c(end_physio,end_acc,end_saut)),ytop=1.45,ybottom=1.15,col='blue')
+                        segments(x0=start_don,y0=rep(1.25,length(start_don)),y1=rep(1.35,length(start_don)),x1=start_don,col='red',lwd=3)
+                        segments(x0=end_acc,y0=rep(1.25,length(end_acc)),y1=rep(1.35,length(end_acc)),x1=end_acc,col='green',lwd=3)
+                        segments(x0=start_saut,y0=rep(1.4,length(start_saut)),y1=rep(1.6,length(start_saut)),x1=start_saut+(end_saut-start_saut)/2,col='blue',
+                            lty=lty,lwd=3)
+                        segments(x0=start_saut+(end_saut-start_saut)/2,y0=rep(1.6,length(start_saut)),y1=rep(1.4,length(start_saut)),x1=end_saut,col='blue',
+                            lty=lty,lwd=3)
+                        segments(x0=start_don,y0=rep(1.3,length(start_don)),y1=rep(1,length(start_don)),x1=start_don+(end_don-start_don)/2,col='red',
+                            lty=lty,lwd=3)
+                        segments(x0=start_don+(end_don-start_don)/2,y0=rep(1,length(start_don)),y1=rep(1.3,length(start_don)),x1=end_don,col='red',
+                            lty=lty,lwd=3)
+                        segments(x0=start_acc,y0=rep(1.3,length(start_acc)),y1=rep(1,length(start_acc)),x1=start_acc+(end_acc-start_acc)/2,col='green',
+                            lty=lty,lwd=3)
+                        segments(x0=start_acc+(end_acc-start_acc)/2,y0=rep(1,length(start_acc)),y1=rep(1.3,length(start_acc)),x1=end_acc,col='green',
+                            lty=lty,lwd=3)
+                        text(y=rep(1.1,length(c(end_physio,max(start_physio)))),cex=2,x=c(min(start_physio),
+                            end_physio[-length(end_physio)]+( start_physio[-1]- end_physio[-length(end_physio)])/2,max(end_physio)),
+                            labels=c(lab_physio))
+                        text(y=2.5,x=min_x+(max_x-min_x)*0.05,labels="Physiological expression:",bg='white',cex=2.5,font=4)
+                        text(y=1.9,x=min_x+(max_x-min_x)*0.05,labels="Alternative splicing:",bg='white',cex=2.5,font=4)
+                        text(y=2.42,x=min_x+(max_x-min_x)*0.05,labels=paste("Global expression =",round(mean(mean_read_physio),0)),bg='white',cex=2)
+                        text(y=h_physio+1.75,x=end_physio + (start_physio-end_physio)/2+((max_x-min_x)/800),
+                            labels=round(mean_read_physio,0),bg='white',cex=1)
+                        text(y=c(1.7,1.8),x=end_saut+(start_saut-end_saut)/2,labels=paste(Annot_saut,":",round(P_saut,2),"%",Signi_saut),
+                            bg='white',cex=1.5,col='blue',font = font_Saut)
+                        text(y=c(0.95,0.9),x=end_don+(start_don-end_don)/2,labels=paste(Annot_don,":",round(P_don,2),"%",Signi_don),
+                            bg='white',cex=1.5,col='red',font = font_Don)
+                        text(y=c(0.85,0.8),x=end_acc+(start_acc-end_acc)/2,labels=paste(Annot_acc,":",round(P_acc,2),"%",Signi_acc),
+                            bg='white',cex=1.5,col='green',font = font_Acc)
+                    }   
+                }
+            }
+        }
+        message(paste("    Not enough read on physiological junctions for",if(GeneMis!=0){GeneMis}else{"NONE"},"gene(s)"))
+        dev.off()
+    }  
+}
 #########################
 #edit report of analysis#
 #########################
@@ -1875,7 +2503,7 @@ chapitre=c("date of analysis","name of input file", "run id", "Nb of samples", r
 "path to output", "name of output file", "path to graphics output","average depth")
 name_input=inputFile
 donnee=c(paste(date_analyse,"; Time to analysis:",Tdiff,"min"),name_input,run,n_ech,names(data_junction)[input],
-			outputDir,name_output,chem_dessin,mean(data_junction$read_mean))
+            outputDir,name_output,chem_dessin,mean(data_junction$read_mean))
 
 rapport=data.frame(chapitre,donnee)
 write.table(rapport,file=paste(chem_rapport,run,"_report_",format(Sys.time(), "%m-%d-%Y"),".txt",sep=""),dec=".",row.names=F,
