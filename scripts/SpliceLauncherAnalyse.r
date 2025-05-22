@@ -1619,8 +1619,8 @@ message("   Data are saving...")
 if(file.exists("output with adjustments.csv")){
     file.remove("output with adjustments.csv")
 }
-if(file.exists("output without adjustment.csv")){
-    file.remove("output without adjustment.csv")
+if(file.exists("output without adjustments.csv")){
+    file.remove("output without adjustments.csv")
 }
 
 if(!printText){
