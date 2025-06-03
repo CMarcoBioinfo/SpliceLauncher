@@ -1778,7 +1778,7 @@ if(DisplayGraph=="YES"){
     id_gene = unique(data_junction$ID_gene)
     id_gene = id_gene[order(id_gene)]
     #Ajout CM
-    unique_genes <- data_genes[!is.na(data_genes$filterInterpretation) & data_genes$event_type != "NoData" & data_genes$event_type != "Physio" & (data_genes$filterInterpretation == "Unique junction" | data_genes$filterInterpretation == "No model" | data_genes$filterInterpretation == "Percentage threshold execeeded"), ]
+    unique_genes <- data_junction[!is.na(data_junction$filterInterpretation) & data_junction$event_type != "NoData" & data_junction$event_type != "Physio" & (data_junction$filterInterpretation == "Unique junction" | data_junction$filterInterpretation == "No model" | data_junction$filterInterpretation == "Percentage threshold execeeded"), ]
     #Fin CM
 
     for(j in 1:length(EchName)){
