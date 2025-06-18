@@ -1426,7 +1426,7 @@ fit.gamma.negbinomial<-function(data, jid, negbinom.n=10){
         model[[j]][["sd"]]<-s
 
         if(bx$stats[4]==0){  # 3rd quartile to 0
-        model[[j]][["model"]]<-"Inexistant event"
+        model[[j]][["model"]]<-"inexistant event"
         next
         }
 
@@ -1960,11 +1960,11 @@ if(DisplayGraph=="YES"){
     }
 
     #Ajout CM
-    #Create plot for significant genes
+    #Create plot for statistical genes
     for(j in 1:length(EchName)){
-        message(paste("   Graphics significant genes for:",EchName[j]))
+        message(paste("   Graphics Statistical genes for:",EchName[j]))
 
-        CairoPDF(file=paste(chem_dessin,EchName[j],"/", EchName[j] , ".significant_genes.pdf",sep=""),width =60, height = 12)
+        CairoPDF(file=paste(chem_dessin,EchName[j],"/", EchName[j] , ".statistical_genes.pdf",sep=""),width =60, height = 12)
 
         data_junction$mean_percent = data_junction[,SampleOutput[j]]
         data_junction$mean_percent[data_junction$mean_percent=='Inf']=100
@@ -2131,12 +2131,12 @@ if(DisplayGraph=="YES"){
         dev.off()
     }
 
-    #Create plot for significant junction
+    #Create plot for statistical junction
     for(j in 1:length(EchName)){
-        message(paste("   Graphics for significant junctions:",EchName[j]))
+        message(paste("   Graphics for Statistical junctions:",EchName[j]))
 
         #CairoPDF(file=paste(chem_dessin,run,"_",EchName[j],".pdf",sep=""),width =60, height = 12)
-        CairoPDF(file=paste(chem_dessin,EchName[j],"/", EchName[j],".significant_junctions.pdf",sep=""),width =60, height = 12)
+        CairoPDF(file=paste(chem_dessin,EchName[j],"/", EchName[j],".statistical_junctions.pdf",sep=""),width =60, height = 12)
 
         data_junction$mean_percent = data_junction[,SampleOutput[j]]
         data_junction$mean_percent[data_junction$mean_percent=='Inf']=100
@@ -2222,9 +2222,9 @@ if(DisplayGraph=="YES"){
 
 
                         # # Filtrer uniquement les jonctions significatives
-                        # significant_don <- na.omit(data_gene[data_gene$event_type == "5AS" & data_gene$mean_percent >= thr & grepl(EchName[j], data_gene$Significative)])
-                        # significant_acc <- na.omit(data_gene[data_gene$event_type == "3AS" & data_gene$mean_percent >= thr &  grepl(EchName[j], data_gene$Significative)])
-                        # significant_saut <- na.omit(data_gene[data_gene$event_type == "SkipEx" & data_gene$mean_percent >= thr & grepl(EchName[j], data_gene$Significative)])
+                        # statistical_don <- na.omit(data_gene[data_gene$event_type == "5AS" & data_gene$mean_percent >= thr & grepl(EchName[j], data_gene$Significative)])
+                        # statistical_acc <- na.omit(data_gene[data_gene$event_type == "3AS" & data_gene$mean_percent >= thr &  grepl(EchName[j], data_gene$Significative)])
+                        # statistical_saut <- na.omit(data_gene[data_gene$event_type == "SkipEx" & data_gene$mean_percent >= thr & grepl(EchName[j], data_gene$Significative)])
 
                     }else if (data_gene$Strand_transcript[1]=="reverse"){
 
@@ -2310,10 +2310,10 @@ if(DisplayGraph=="YES"){
 
     #Create plot for unique junctions
     for(j in 1:length(EchName)){
-        message(paste("   Graphics for unique junctions:",EchName[j]))
+        message(paste("   Graphics for non statistical junctions:",EchName[j]))
 
         #CairoPDF(file=paste(chem_dessin,run,"_",EchName[j],".pdf",sep=""),width =60, height = 12)
-        CairoPDF(file=paste(chem_dessin,EchName[j],"/", EchName[j],".unique_junctions.pdf",sep=""),width =60, height = 12)
+        CairoPDF(file=paste(chem_dessin,EchName[j],"/", EchName[j],".non_statistical_junctions.pdf",sep=""),width =60, height = 12)
 
         data_junction$mean_percent = data_junction[,SampleOutput[j]]
         data_junction$mean_percent[data_junction$mean_percent=='Inf']=100
@@ -2403,9 +2403,9 @@ if(DisplayGraph=="YES"){
 
 
                         # # Filtrer uniquement les jonctions significatives
-                        # significant_don <- na.omit(data_gene[data_gene$event_type == "5AS" & data_gene$mean_percent >= thr & grepl(EchName[j], data_gene$Significative)])
-                        # significant_acc <- na.omit(data_gene[data_gene$event_type == "3AS" & data_gene$mean_percent >= thr &  grepl(EchName[j], data_gene$Significative)])
-                        # significant_saut <- na.omit(data_gene[data_gene$event_type == "SkipEx" & data_gene$mean_percent >= thr & grepl(EchName[j], data_gene$Significative)])
+                        # statistical_don <- na.omit(data_gene[data_gene$event_type == "5AS" & data_gene$mean_percent >= thr & grepl(EchName[j], data_gene$Significative)])
+                        # statistical_acc <- na.omit(data_gene[data_gene$event_type == "3AS" & data_gene$mean_percent >= thr &  grepl(EchName[j], data_gene$Significative)])
+                        # statistical_saut <- na.omit(data_gene[data_gene$event_type == "SkipEx" & data_gene$mean_percent >= thr & grepl(EchName[j], data_gene$Significative)])
 
                     }else if (data_gene$Strand_transcript[1]=="reverse"){
 
