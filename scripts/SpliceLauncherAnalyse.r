@@ -1426,7 +1426,7 @@ fit.gamma.negbinomial<-function(data, jid, negbinom.n=10){
         model[[j]][["sd"]]<-s
 
         if(bx$stats[4]==0){  # 3rd quartile to 0
-        model[[j]][["model"]]<-"inexistant event"
+        model[[j]][["model"]]<-"Inexistant event"
         next
         }
 
